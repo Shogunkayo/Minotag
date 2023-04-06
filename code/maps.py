@@ -4,15 +4,16 @@ from settings import tile_size
 from tile import StaticTile, Coin, Crate, Palm
 from util import import_csv_layout, import_cut_graphics
 from decorations import Sky, Clouds
+from player import Player
 
 class Map0:
-    def __init__(self, surface, player0):
+    def __init__(self, surface):
         self.display_surface = surface
 
         # player setup
         self.current_x = 0
         self.player = pygame.sprite.GroupSingle()
-        self.player.add(player0)
+        self.player_setup()
 
         # terrain
         terrain_layout = import_csv_layout(game_data.map0['terrain'])
@@ -99,7 +100,8 @@ class Map0:
 
     def horizontal_collision(self):
         player = self.player.sprite
-        player.rect.x += player.direction.x * player.speed
+        # player.rect.x += player.direction.x * player.speed
+        player.accelerate()
         collidable_sprites = self.terrain_sprites.sprites() + self.crate_sprites.sprites() + self.palm_fg_sprites.sprites()
 
         for sprite in collidable_sprites:
@@ -140,6 +142,10 @@ class Map0:
             player.on_ground = False
         if player.on_ceiling and player.direction.y > 0:
             player.on_ceiling = False
+
+    def player_setup(self):
+        player0 = Player(0, (450, 450), self.display_surface)
+        self.player.add(player0)
 
     def run(self):
         self.sky.draw(self.display_surface)

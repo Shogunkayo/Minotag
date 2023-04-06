@@ -8,26 +8,23 @@ class Player(pygame.sprite.Sprite):
         self.import_assets()
         self.player_id = id
         self.frame_index = 0
-        self.animation_speed = 0.20
+        self.animation_speed = 0.30
         self.image = self.animations['idle'][self.frame_index]
         self.rect = self.image.get_rect(topleft=pos)
 
-        # dust dust_particles
-        # self.import_dust_run_assets()
-        self.dust_frame_index = 0
-        self.dust_animation_speed = 0.15
-        self.display_surface = surface
-        # self.create_jump_particles = create_jump_particles
+        self.is_tagged = False
 
         # movement
         self.direction = pygame.math.Vector2(0, 0)
-        self.set_speed = 7
+        self.min_speed = 5
+        self.max_speed = 10
         self.set_gravity = 1.5
         self.set_jump_available = 2
+        self.acceleration = 0
 
-        self.speed = self.set_speed
+        self.speed = self.min_speed
         self.gravity = self.set_gravity
-        self.jump_speed = -3 * self.set_speed
+        self.jump_speed = -1.5 * self.speed
         self.jump_available = self.set_jump_available
 
         # status
@@ -82,8 +79,6 @@ class Player(pygame.sprite.Sprite):
         elif keys[pygame.K_LEFT] or keys[pygame.K_a]:
             self.direction.x = -1
             self.facing_right = False
-        else:
-            self.direction.x = 0
 
         if keys[pygame.K_SPACE] and self.on_ground:
             self.jump()
@@ -98,6 +93,29 @@ class Player(pygame.sprite.Sprite):
                 self.status = 'run'
             else:
                 self.status = 'idle'
+
+    def accelerate(self):
+        if self.status == 'run' or self.status == 'jump':
+            if self.speed < self.max_speed:
+                self.acceleration += 0.01
+            else:
+                self.acceleration = 0
+        else:
+            if self.status == 'idle':
+                if self.speed > self.min_speed:
+                    self.acceleration -= 0.01
+                else:
+                    self.acceleration = 0
+            else:
+                if self.speed > self.min_speed:
+                    self.acceleration -= 0.05
+                else:
+                    self.acceleration = 0
+
+        self.speed += self.acceleration
+        self.rect.x += self.speed * self.direction.x
+
+        print(self.speed)
 
     def apply_gravity(self):
         self.direction.y += self.gravity
