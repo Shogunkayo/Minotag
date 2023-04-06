@@ -6,8 +6,13 @@ from util import import_csv_layout, import_cut_graphics
 from decorations import Sky, Clouds
 
 class Map0:
-    def __init__(self, surface):
+    def __init__(self, surface, player0):
         self.display_surface = surface
+
+        # player setup
+        self.current_x = 0
+        self.player = pygame.sprite.GroupSingle()
+        self.player.add(player0)
 
         # terrain
         terrain_layout = import_csv_layout(game_data.map0['terrain'])
@@ -92,6 +97,50 @@ class Map0:
 
         return sprite_group
 
+    def horizontal_collision(self):
+        player = self.player.sprite
+        player.rect.x += player.direction.x * player.speed
+        collidable_sprites = self.terrain_sprites.sprites() + self.crate_sprites.sprites() + self.palm_fg_sprites.sprites()
+
+        for sprite in collidable_sprites:
+            if sprite.rect.colliderect(player.rect):
+                if player.direction.x < 0:
+                    player.rect.left = sprite.rect.right
+                    player.on_left = True
+                    self.current_x = player.rect.left
+                elif player.direction.x > 0:
+                    player.rect.right = sprite.rect.left
+                    player.on_right = True
+                    self.current_x = player.rect.right
+
+        if player.on_left and (player.rect.left < self.current_x or player.direction.x >= 0):
+            player.on_left = False
+
+        if player.on_right and (player.rect.right > self.current_x or player.direction.x <= 0):
+            player.on_right = False
+
+    def vertical_collision(self):
+        player = self.player.sprite
+        player.apply_gravity()
+        collidable_sprites = self.terrain_sprites.sprites() + self.crate_sprites.sprites() + self.palm_fg_sprites.sprites()
+
+        for sprite in collidable_sprites:
+            if sprite.rect.colliderect(player.rect):
+                if player.direction.y > 0:
+                    player.rect.bottom = sprite.rect.top
+                    player.direction.y = 0
+                    player.jump_available = player.set_jump_available
+                    player.on_ground = True
+                elif player.direction.y < 0:
+                    player.rect.top = sprite.rect.bottom
+                    player.direction.y = 0
+                    player.on_ceiling = True
+
+        if player.on_ground and player.direction.y < 0 or player.direction.y > 1:
+            player.on_ground = False
+        if player.on_ceiling and player.direction.y > 0:
+            player.on_ceiling = False
+
     def run(self):
         self.sky.draw(self.display_surface)
         self.clouds.draw(self.display_surface, 0)
@@ -105,3 +154,8 @@ class Map0:
         self.crate_sprites.draw(self.display_surface)
         self.power_sprites.update(0, 0)
         self.power_sprites.draw(self.display_surface)
+
+        self.player.update()
+        self.player.draw(self.display_surface)
+        self.horizontal_collision()
+        self.vertical_collision()
