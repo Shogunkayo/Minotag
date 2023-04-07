@@ -7,11 +7,9 @@ from decorations import Sky, Clouds
 from player import Player, ParticleEffect
 
 class Map0:
-    def __init__(self, surface, net):
+    def __init__(self, surface):
         self.display_surface = surface
         self.world_shift_x = 0
-        self.net = net
-
         self.start_pos = read_pos(self.net.get_pos())
 
         # player setup

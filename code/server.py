@@ -1,55 +1,60 @@
 import socket
 from _thread import start_new_thread
-import sys
-from util import read_pos, make_pos
+import pickle
 
-server = "192.168.1.8"
-port = 5555
+class Server():
+    def __init__(self, ip, port):
+        self.server = ip
+        self.port = port
+        self.start_server()
+        self.players = []
+        self.current_player = 0
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    def start_server(self):
+        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.s.bind((self.server, self.port))
+        self.s.listen()
+        print("Server Started")
 
-try:
-    s.bind((server, port))
-except socket.error as e:
-    str(e)
+    def threaded_client(self, connection, player):
+        connection.send(pickle.dumps("Hehehehaw"))
 
-s.listen(2)
-print("Server Started")
+        reply = ""
+        while True:
+            try:
+                data = connection.recv(2048)
 
-pos = [(450, 450), (550, 550)]
-
-def threaded_client(connection, player):
-    connection.send(str.encode(make_pos(pos[player])))
-    reply = ""
-    while True:
-        try:
-            data = read_pos(connection.recv(2048).decode())
-            pos[player] = data
-
-            if not data:
-                print("Disconnected")
-                break
-            else:
-                if player == 1:
-                    reply = pos[0]
+                if not data:
+                    print("Disconnected")
+                    break
                 else:
-                    reply = pos[1]
+                    data = pickle.loads(data)
+                    reply = data['sendme']
 
-                print("Recieved:", data)
-                print("Sending:", reply)
+                    print("Recieved: ", data['text'])
+                    print("Sending: ", reply)
 
-            connection.sendall(str.encode(make_pos(reply)))
+                connection.sendall(pickle.dumps(reply))
 
-        except:
-            break
+            except Exception as e:
+                print(e)
 
-    print("Lost connection")
+        print("Connection Ended")
 
-current_player = 0
+    def run(self):
+        while True:
+            connection, addr = self.s.accept()
+            print("Connected to:", addr)
 
-while True:
-    connection, addr = s.accept()
-    print("Connected to:", addr)
+            start_new_thread(self.threaded_client, (connection,
+                                                    self.current_player))
 
-    start_new_thread(threaded_client, (connection, current_player))
-    current_player += 1
+            self.current_player += 1
+
+
+if __name__ == "__main__":
+    ip = "192.168.1.8"
+    port = 5555
+
+    server = Server(ip, port)
+    server.run()

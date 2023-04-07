@@ -1,31 +1,33 @@
 import socket
+import pickle
 
 class Network:
     def __init__(self):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server = '192.168.1.8'
+        self.ip = '192.168.1.8'
         self.port = 5555
-        self.addr = (self.server, self.port)
-        self.pos = self.connect()
+        self.player = self.connect()
 
-    def get_pos(self):
-        return self.pos
+    def get_player(self):
+        return pickle.loads(self.player)
 
     def connect(self):
         try:
-            self.client.connect(self.addr)
-            return self.client.recv(2048).decode()
+            self.client.connect((self.ip, self.port))
+            return self.client.recv(2048)
         except Exception as e:
             print(e)
 
     def send(self, data):
         try:
-            self.client.send(str.encode(data))
-            return self.client.recv(2048).decode()
+            data = pickle.dumps(data)
+            self.client.send(data)
+            return pickle.loads(self.client.recv(2048))
         except socket.error as e:
             print(e)
 
 if __name__ == "__main__":
     n = Network()
-    print(n.send("Hello"))
-    print(n.send("World"))
+    print(n.send({'text': "Hello", 'sendme': 'GRRRRRRRR'}))
+    print(n.send({'text': "World", 'sendme': 'grrrrrrrr'}))
+    print(n.get_player())
