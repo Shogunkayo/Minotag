@@ -4,16 +4,21 @@ from settings import tile_size
 from tile import StaticTile, Coin, Crate, Palm
 from util import import_csv_layout, import_cut_graphics
 from decorations import Sky, Clouds
-from player import Player
+from player import Player, ParticleEffect
 
 class Map0:
     def __init__(self, surface):
         self.display_surface = surface
+        self.world_shift_x = 0
 
         # player setup
         self.current_x = 0
         self.player = pygame.sprite.GroupSingle()
         self.player_setup()
+
+        # dust
+        self.dust_sprite = pygame.sprite.GroupSingle()
+        self.player_on_ground = False
 
         # terrain
         terrain_layout = import_csv_layout(game_data.map0['terrain'])
@@ -98,6 +103,30 @@ class Map0:
 
         return sprite_group
 
+    def create_jump_particles(self, pos):
+        if self.player.sprite.facing_right:
+            pos += pygame.math.Vector2(-10, -15)
+        else:
+            pos += pygame.math.Vector2(10, -15)
+
+        jump_particles_sprite = ParticleEffect(pos, 'jump')
+        self.dust_sprite.add(jump_particles_sprite)
+
+    def get_player_on_ground(self):
+        if self.player.sprite.on_ground:
+            self.player_on_ground = True
+        else:
+            self.player_on_ground = False
+
+    def create_landing_dust(self):
+        if not self.player_on_ground and self.player.sprite.on_ground and not self.dust_sprite.sprites():
+            if self.player.sprite.facing_right:
+                offset = pygame.math.Vector2(-10, -15)
+            else:
+                offset = pygame.math.Vector2(10, -15)
+            fall_dust_particle = ParticleEffect(self.player.sprite.rect.midbottom + offset, 'land')
+            self.dust_sprite.add(fall_dust_particle)
+
     def horizontal_collision(self):
         player = self.player.sprite
         # player.rect.x += player.direction.x * player.speed
@@ -144,13 +173,15 @@ class Map0:
             player.on_ceiling = False
 
     def player_setup(self):
-        player0 = Player(0, (450, 450), self.display_surface)
+        player0 = Player(0, (450, 450), self.display_surface, self.create_jump_particles)
         self.player.add(player0)
 
     def run(self):
+        # decoration sprites
         self.sky.draw(self.display_surface)
         self.clouds.draw(self.display_surface, 0)
 
+        # terrain sprites
         self.terrain_sprites.draw(self.display_surface)
         self.palm_bg_sprites.update(0, 0)
         self.palm_fg_sprites.update(0, 0)
@@ -161,7 +192,12 @@ class Map0:
         self.power_sprites.update(0, 0)
         self.power_sprites.draw(self.display_surface)
 
+        # player sprites
         self.player.update()
         self.player.draw(self.display_surface)
         self.horizontal_collision()
         self.vertical_collision()
+        self.dust_sprite.update(self.world_shift_x)
+        self.dust_sprite.draw(self.display_surface)
+        self.get_player_on_ground()
+        self.create_landing_dust()
