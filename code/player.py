@@ -201,8 +201,13 @@ class Player(pygame.sprite.Sprite):
     def jump(self):
         self.direction.y = self.jump_speed
 
-    def update(self):
-        self.get_input()
+    def update(self, id, new_pos=(0, 0)):
+        if id == 0:
+            self.get_input()
+        else:
+            self.rect.x = new_pos.x
+            self.rect.y = new_pos.y
+
         self.get_status()
         self.animate()
         if self.speed > (self.max_speed - self.min_speed)/2 + self.min_speed:

@@ -2,18 +2,23 @@ import pygame
 import game_data
 from settings import tile_size
 from tile import StaticTile, Coin, Crate, Palm
-from util import import_csv_layout, import_cut_graphics
+from util import import_csv_layout, import_cut_graphics, read_pos, make_pos
 from decorations import Sky, Clouds
 from player import Player, ParticleEffect
 
 class Map0:
-    def __init__(self, surface):
+    def __init__(self, surface, net):
         self.display_surface = surface
         self.world_shift_x = 0
+        self.net = net
+
+        self.start_pos = read_pos(self.net.get_pos())
 
         # player setup
         self.current_x = 0
         self.player = pygame.sprite.GroupSingle()
+        self.player2 = pygame.sprite.GroupSingle()
+        self.player2_pos = pygame.math.Vector2(0, 0)
         self.player_setup()
 
         # dust
@@ -173,8 +178,10 @@ class Map0:
             player.on_ceiling = False
 
     def player_setup(self):
-        player0 = Player(0, (450, 450), self.display_surface, self.create_jump_particles)
-        self.player.add(player0)
+        player1 = Player(1, self.start_pos, self.display_surface, self.create_jump_particles)
+        player2 = Player(2, (100, 100), self.display_surface, self.create_jump_particles)
+        self.player.add(player1)
+        self.player2.add(player2)
 
     def run(self):
         # decoration sprites
@@ -193,7 +200,7 @@ class Map0:
         self.power_sprites.draw(self.display_surface)
 
         # player sprites
-        self.player.update()
+        self.player.update(0)
         self.player.draw(self.display_surface)
         self.horizontal_collision()
         self.vertical_collision()
@@ -201,3 +208,14 @@ class Map0:
         self.dust_sprite.draw(self.display_surface)
         self.get_player_on_ground()
         self.create_landing_dust()
+
+        # transmit and receive positions
+        p1_rect = self.player.sprite.rect
+        p2_rect = self.player2.sprite.rect
+
+        p2_pos = read_pos(self.net.send(make_pos((p1_rect.left,
+                                                  p1_rect.top))))
+
+        self.player2_pos.x, self.player2_pos.y = p2_pos[0], p2_pos[1]
+        self.player2.update(1, self.player2_pos)
+        self.player2.draw(self.display_surface)
