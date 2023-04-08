@@ -117,7 +117,8 @@ class Player(pygame.sprite.Sprite):
             if self.facing_right:
                 display_surface.blit(dust_particle, self.rect.bottomleft - pygame.math.Vector2(9, 9))
             else:
-                display_surface.blit(pygame.transform.flip(dust_particle, True, False), self.rect.bottomright - pygame.math.Vector2(9, 9))
+                display_surface.blit(pygame.transform.flip(dust_particle, True, False),
+                                     self.rect.bottomright - pygame.math.Vector2(9, 9))
 
     def get_input(self):
         keys = pygame.key.get_pressed()
@@ -204,12 +205,15 @@ class Player(pygame.sprite.Sprite):
         jump_particles_sprite = ParticleEffect(pos, 'jump')
         self.dust_sprite.add(jump_particles_sprite)
 
-    def update(self, id, display_surface, new_pos=(0, 0)):
+    def update(self, id, display_surface, new_pos=(0, 0), status='idle', direction=1, facing_right=True):
         if id == 0:
             self.get_input()
         else:
             self.rect.x = new_pos[0]
             self.rect.y = new_pos[1]
+            self.facing_right = facing_right
+            self.status = status
+            self.direction.x = direction
 
         self.get_status()
         self.animate()

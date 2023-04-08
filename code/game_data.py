@@ -8,16 +8,8 @@ map0 = {
     'grass': '../map/map0/map0_grass.csv'
 }
 
-player0 = {
-    'path': '../assets/character/PNG/Minotaur_01/PNG Sequences/'
-}
-
-player1 = {
-    'path': '../assets/character/PNG/Minotaur_02/PNG Sequences/'
-}
-
-player2 = {
-    'path': '../assets/character/PNG/Minotaur_03/PNG Sequences/'
-}
-
-players = [player0, player1, player2]
+horizontal_tile_number = 30
+vertical_tile_number = 16
+tile_size = 64
+screen_width = 1980
+screen_height = 1024

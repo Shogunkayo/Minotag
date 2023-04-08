@@ -1,6 +1,6 @@
 import pygame
 import game_data
-from settings import tile_size
+from game_data import tile_size
 from tile import StaticTile, Coin, Crate, Palm
 from util import import_csv_layout, import_cut_graphics
 from decorations import Sky, Clouds
@@ -17,8 +17,7 @@ class Map0:
 
         # terrain
         terrain_layout = import_csv_layout(game_data.map0['terrain'])
-        self.terrain_sprites = self.create_tile_group(terrain_layout,
-                                                      'terrain')
+        self.terrain_sprites = self.create_tile_group(terrain_layout, 'terrain')
 
         # grass
         grass_layout = import_csv_layout(game_data.map0['grass'])
@@ -34,13 +33,11 @@ class Map0:
 
         # palm fg
         palm_fg_layout = import_csv_layout(game_data.map0['palm_fg'])
-        self.palm_fg_sprites = self.create_tile_group(palm_fg_layout,
-                                                      'palm_fg')
+        self.palm_fg_sprites = self.create_tile_group(palm_fg_layout, 'palm_fg')
 
         # palm bg
         palm_bg_layout = import_csv_layout(game_data.map0['palm_bg'])
-        self.palm_bg_sprites = self.create_tile_group(palm_bg_layout,
-                                                      'palm_bg')
+        self.palm_bg_sprites = self.create_tile_group(palm_bg_layout, 'palm_bg')
 
         # decoration
         self.sky = Sky(10)
@@ -176,9 +173,9 @@ class Map0:
 
         # receive and transmit players
         if self.player2:
-            p1_rect = self.player.sprite.rect
-            update = net.send({'type': 'update', 'position': (p1_rect.left, p1_rect.top)})
-            self.player2_pos.x, self.player2_pos.y = update
-            self.player2.update(1,display_surface, self.player2_pos)
-            print(self.player2.sprite.rect.left, self.player2.sprite.rect.top)
+            p1 = self.player.sprite
+            update = net.send({'type': 'update', 'position': (p1.rect.left, p1.rect.top), 'facing_right': p1.facing_right,
+                               'direction': p1.direction.x, 'status': p1.status})
+            self.player2_pos.x, self.player2_pos.y = update['position']
+            self.player2.update(1, display_surface, self.player2_pos, update['status'], update['direction'], update['facing_right'])
             self.player2.draw(display_surface)

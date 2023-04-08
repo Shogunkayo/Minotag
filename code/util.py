@@ -1,7 +1,7 @@
 import pygame
 from csv import reader
 from os import walk
-from settings import tile_size
+from game_data import tile_size
 
 def import_folder(path):
     surface_list = []
@@ -36,17 +36,8 @@ def import_cut_graphics(path):
             x = col * tile_size
             y = row * tile_size
 
-            new_surface = pygame.Surface((tile_size, tile_size),
-                                         flags=pygame.SRCALPHA)
-            new_surface.blit(surface, (0,0),
-                             pygame.Rect(x,y,tile_size, tile_size))
+            new_surface = pygame.Surface((tile_size, tile_size), flags=pygame.SRCALPHA)
+            new_surface.blit(surface, (0,0), pygame.Rect(x,y,tile_size, tile_size))
             cut_tiles.append(new_surface)
 
     return cut_tiles
-
-def read_pos(pos):
-    pos = pos.split(",")
-    return int(pos[0]), int(pos[1])
-
-def make_pos(tup):
-    return str(tup[0]) + "," + str(tup[1])

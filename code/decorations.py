@@ -1,5 +1,5 @@
 import pygame
-from settings import tile_size, vertical_tile_number, screen_width
+from game_data import tile_size, vertical_tile_number, screen_width
 from tile import StaticTile
 from util import import_folder
 from random import choice, randint

@@ -1,6 +1,6 @@
 import pygame
 import sys
-from settings import screen_width, screen_height
+from game_data import screen_width, screen_height
 from network import Network
 
 class Game:
