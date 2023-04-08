@@ -1,5 +1,4 @@
 import pygame
-from game_data import players
 from util import import_folder
 
 class ParticleEffect(pygame.sprite.Sprite):
@@ -28,26 +27,16 @@ class ParticleEffect(pygame.sprite.Sprite):
         self.rect.x += x_shift
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, id, pos, surface, create_jump_particles):
+    def __init__(self, id, pos):
         super().__init__()
-        self.import_assets()
         self.player_id = id
         self.frame_index = 0
         self.animation_speed = 0.20
-        self.image = self.animations['idle'][self.frame_index]
-        self.rect = self.image.get_rect(topleft=pos)
+        self.pos = pos
 
         self.is_tagged = False
 
-        # dust particles
-        self.import_dust_run_assets()
-        self.dust_frame_index = 0
-        self.dust_animation_speed = 0.15
-        self.display_surface = surface
-        self.create_jump_particles = create_jump_particles
-
         # movement
-        self.direction = pygame.math.Vector2(0, 0)
         self.min_speed = 7
         self.max_speed = 11
         self.set_gravity = 1.5
@@ -73,7 +62,6 @@ class Player(pygame.sprite.Sprite):
         self.on_left = False
 
     def import_assets(self):
-        # path = players[self.player_id].path
         path = '../assets/character_pirate/'
         self.animations = {'idle': [], 'fall': [], 'run': [], 'jump': []}
 
@@ -82,9 +70,15 @@ class Player(pygame.sprite.Sprite):
             self.animations[animation] = import_folder(full_path)
 
         self.animations['run_stop'] = import_folder(path + 'run')
+        self.image = self.animations['idle'][self.frame_index]
+        self.rect = self.image.get_rect(topleft=self.pos)
+        self.direction = pygame.math.Vector2(0, 0)
 
     def import_dust_run_assets(self):
         self.dust_run_assets = import_folder('../assets/character_pirate/dust_particles/run/')
+        self.dust_frame_index = 0
+        self.dust_animation_speed = 0.15
+        self.dust_sprite = pygame.sprite.GroupSingle()
 
     def animate(self):
         animation = self.animations[self.status]
@@ -112,7 +106,7 @@ class Player(pygame.sprite.Sprite):
         elif self.on_ceiling:
             self.rect = self.image.get_rect(midtop=self.rect.midtop)
 
-    def run_dust_animation(self):
+    def run_dust_animation(self, display_surface):
         if self.status == 'run' and self.on_ground:
             self.dust_frame_index += self.dust_animation_speed
             if self.dust_frame_index >= len(self.dust_run_assets):
@@ -121,9 +115,9 @@ class Player(pygame.sprite.Sprite):
             dust_particle = self.dust_run_assets[int(self.dust_frame_index)]
 
             if self.facing_right:
-                self.display_surface.blit(dust_particle, self.rect.bottomleft - pygame.math.Vector2(9, 9))
+                display_surface.blit(dust_particle, self.rect.bottomleft - pygame.math.Vector2(9, 9))
             else:
-                self.display_surface.blit(pygame.transform.flip(dust_particle, True, False), self.rect.bottomright - pygame.math.Vector2(9, 9))
+                display_surface.blit(pygame.transform.flip(dust_particle, True, False), self.rect.bottomright - pygame.math.Vector2(9, 9))
 
     def get_input(self):
         keys = pygame.key.get_pressed()
@@ -201,8 +195,17 @@ class Player(pygame.sprite.Sprite):
     def jump(self):
         self.direction.y = self.jump_speed
 
-    def update(self, id, new_pos=(0, 0)):
-        if id == 0:
+    def create_jump_particles(self, pos):
+        if self.facing_right:
+            pos += pygame.math.Vector2(-10, -15)
+        else:
+            pos += pygame.math.Vector2(10, -15)
+
+        jump_particles_sprite = ParticleEffect(pos, 'jump')
+        self.dust_sprite.add(jump_particles_sprite)
+
+    def update(self, id, display_surface, new_pos=(0, 0)):
+        if id == self.player_id:
             self.get_input()
         else:
             self.rect.x = new_pos.x
@@ -211,4 +214,7 @@ class Player(pygame.sprite.Sprite):
         self.get_status()
         self.animate()
         if self.speed > (self.max_speed - self.min_speed)/2 + self.min_speed:
-            self.run_dust_animation()
+            self.run_dust_animation(display_surface)
+
+        self.dust_sprite.update(0)
+        self.dust_sprite.draw(display_surface)
