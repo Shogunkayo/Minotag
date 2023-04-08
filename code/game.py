@@ -11,10 +11,11 @@ class Game:
         self.clock = pygame.time.Clock()
 
         self.net = Network()
+        self.player2 = False
 
         self.get_maps()
         self.get_current_map()
-        self.get_players()
+        self.get_player_1()
 
     def get_maps(self):
         maps = self.net.send({'type': 'map_list'})
@@ -24,14 +25,22 @@ class Game:
         self.current_map = 0
         self.map_list[self.current_map].load_sprites()
 
-    def get_players(self):
-        self.id = self.net.send({'type': 'get_id'})
-        print(self.id)
-        player = self.net.send({'type': 'create_player', 'id': self.id})
+    def get_player_1(self):
+        player = self.net.send({'type': 'create_player', 'id': 0})
         print(player)
-        player[0].import_assets()
-        player[0].import_dust_run_assets()
-        self.map_list[self.current_map].player_setup(player[0])
+        player.import_assets()
+        player.import_dust_run_assets()
+
+        self.map_list[self.current_map].player_setup(player)
+
+    def get_player_2(self):
+        if not self.player2:
+            player = self.net.send({'type': 'get_player'})
+            if player:
+                self.player2 = True
+                player.import_assets()
+                player.import_dust_run_assets()
+                self.map_list[self.current_map].player2_setup(player)
 
     def run(self):
         while True:
@@ -41,9 +50,8 @@ class Game:
                     sys.exit()
 
             self.screen.fill('gray')
-
-            self.map_list[self.current_map].run(self.screen)
-
+            self.get_player_2()
+            self.map_list[self.current_map].run(self.screen, self.net)
             pygame.display.update()
             self.clock.tick(120)
 

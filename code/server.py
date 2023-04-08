@@ -3,10 +3,11 @@ from _thread import start_new_thread
 import pickle
 from maps import Map0
 from player import Player
-from random import shuffle
+import pygame
 
 class Server():
     def __init__(self, ip, port):
+        pygame.init()
         self.server = ip
         self.port = port
         self.start_server()
@@ -14,6 +15,7 @@ class Server():
         # player
         self.current_player = 0
         self.player_positions = [(450, 450), (550, 450)]
+        self.players = []
 
     def start_server(self):
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -22,10 +24,9 @@ class Server():
         print("Server Started")
 
     def threaded_client(self, addr, connection, player):
-        connection.send(pickle.dumps("Hehehehaw"))
+        connection.sendall(pickle.dumps(self.players))
         reply = ""
         while True:
-            try:
                 data = connection.recv(2048)
                 if not data:
                     print("Disconnected:", addr)
@@ -38,17 +39,35 @@ class Server():
                         reply = player
                     elif data['type'] == 'create_player':
                         id = data['id']
-                        reply = [Player(id, self.player_positions[id])]
-                    else:
-                        reply = data['sendme']
+                        self.players.append(Player(id, self.player_positions[id]))
+                        if player == 0:
+                            reply = self.players[0]
+                        elif player == 1:
+                            reply = self.players[1]
+                    elif data['type'] == 'get_player':
+                        if len(self.players) < 2:
+                            reply = None
+                        elif player == 0:
+                            reply = self.players[1]
+                        elif player == 1:
+                            reply = self.players[0]
 
-                    print("Recieved: ", data)
+                    elif data['type'] == 'update':
+                        if player == 0:
+                            self.player_positions[0] = data['position']
+                            reply = self.player_positions[1]
+                        elif player == 1:
+                            self.player_positions[1] = data['position']
+                            reply = self.player_positions[0]
+
+                    else:
+                        reply = "Hehehehaw"
+
+                    print(player, "Recieved: ", data)
                     print("Sending: ", reply)
 
                 connection.sendall(pickle.dumps(reply))
 
-            except Exception as e:
-                print(e)
 
         print("Connection Ended: ", addr)
 
@@ -64,7 +83,7 @@ class Server():
 
 if __name__ == "__main__":
     ip = "192.168.1.8"
-    port = 8000
+    port = 7000
 
     server = Server(ip, port)
     server.run()

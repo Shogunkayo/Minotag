@@ -205,11 +205,11 @@ class Player(pygame.sprite.Sprite):
         self.dust_sprite.add(jump_particles_sprite)
 
     def update(self, id, display_surface, new_pos=(0, 0)):
-        if id == self.player_id:
+        if id == 0:
             self.get_input()
         else:
-            self.rect.x = new_pos.x
-            self.rect.y = new_pos.y
+            self.rect.x = new_pos[0]
+            self.rect.y = new_pos[1]
 
         self.get_status()
         self.animate()

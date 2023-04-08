@@ -4,11 +4,11 @@ from settings import tile_size
 from tile import StaticTile, Coin, Crate, Palm
 from util import import_csv_layout, import_cut_graphics
 from decorations import Sky, Clouds
-from player import ParticleEffect
 
 class Map0:
     def __init__(self):
         self.world_shift_x = 0
+        self.player2 = None
 
     def load_sprites(self):
         # dust
@@ -49,8 +49,12 @@ class Map0:
 
     def player_setup(self, player):
         self.player = pygame.sprite.GroupSingle()
-        self.player2_pos = pygame.math.Vector2(0, 0)
         self.player.add(player)
+
+    def player2_setup(self, player):
+        self.player2 = pygame.sprite.GroupSingle()
+        self.player2_pos = pygame.math.Vector2(0, 0)
+        self.player2.add(player)
 
     def create_tile_group(self, layout, type):
         sprite_group = pygame.sprite.Group()
@@ -103,33 +107,8 @@ class Map0:
 
         return sprite_group
 
-    def create_jump_particles(self, pos):
-        if self.player.sprite.facing_right:
-            pos += pygame.math.Vector2(-10, -15)
-        else:
-            pos += pygame.math.Vector2(10, -15)
-
-        jump_particles_sprite = ParticleEffect(pos, 'jump')
-        self.dust_sprite.add(jump_particles_sprite)
-
-    def get_player_on_ground(self):
-        if self.player.sprite.on_ground:
-            self.player_on_ground = True
-        else:
-            self.player_on_ground = False
-
-    def create_landing_dust(self):
-        if not self.player_on_ground and self.player.sprite.on_ground and not self.dust_sprite.sprites():
-            if self.player.sprite.facing_right:
-                offset = pygame.math.Vector2(-10, -15)
-            else:
-                offset = pygame.math.Vector2(10, -15)
-            fall_dust_particle = ParticleEffect(self.player.sprite.rect.midbottom + offset, 'land')
-            self.dust_sprite.add(fall_dust_particle)
-
     def horizontal_collision(self):
         player = self.player.sprite
-        # player.rect.x += player.direction.x * player.speed
         player.accelerate()
         collidable_sprites = self.terrain_sprites.sprites() + self.crate_sprites.sprites() + self.palm_fg_sprites.sprites()
 
@@ -173,7 +152,7 @@ class Map0:
             player.on_ceiling = False
 
 
-    def run(self, display_surface):
+    def run(self, display_surface, net):
         # decoration sprites
         self.sky.draw(display_surface)
         self.clouds.draw(display_surface, 0)
@@ -194,3 +173,12 @@ class Map0:
         self.player.draw(display_surface)
         self.horizontal_collision()
         self.vertical_collision()
+
+        # receive and transmit players
+        if self.player2:
+            p1_rect = self.player.sprite.rect
+            update = net.send({'type': 'update', 'position': (p1_rect.left, p1_rect.top)})
+            self.player2_pos.x, self.player2_pos.y = update
+            self.player2.update(1,display_surface, self.player2_pos)
+            print(self.player2.sprite.rect.left, self.player2.sprite.rect.top)
+            self.player2.draw(display_surface)
