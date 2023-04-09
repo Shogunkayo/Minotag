@@ -9,6 +9,7 @@ class Map0:
     def __init__(self):
         self.world_shift_x = 0
         self.player2 = None
+        self.last_tag = 0
 
     def load_sprites(self):
         # dust
@@ -44,11 +45,11 @@ class Map0:
         level_width = len(terrain_layout[0]) * tile_size
         self.clouds = Clouds(400, level_width, 20)
 
-    def player_setup(self, player):
+    def player_1_setup(self, player):
         self.player = pygame.sprite.GroupSingle()
         self.player.add(player)
 
-    def player2_setup(self, player):
+    def player_2_setup(self, player):
         self.player2 = pygame.sprite.GroupSingle()
         self.player2_pos = pygame.math.Vector2(0, 0)
         self.player2.add(player)
@@ -148,6 +149,19 @@ class Map0:
         if player.on_ceiling and player.direction.y > 0:
             player.on_ceiling = False
 
+    def switch_tags(self):
+        p1 = self.player.sprite
+        p2 = self.player2.sprite
+        if self.player.sprite.rect.colliderect(self.player2.sprite.rect):
+            if self.current_time - self.last_tag >= self.tag_cooldown:
+                if p1.is_tagged:
+                    p1.is_tagged = False
+                    p2.is_tagged = True
+                else:
+                    p1.is_tagged = True
+                    p2.is_tagged = False
+                self.last_tag = self.current_time
+
 
     def run(self, display_surface, net):
         # decoration sprites
@@ -171,11 +185,18 @@ class Map0:
         self.horizontal_collision()
         self.vertical_collision()
 
-        # receive and transmit players
+        # receive and transmit
         if self.player2:
             p1 = self.player.sprite
+
+            get_time = net.send({'type': 'get_time'})
+            self.tag_cooldown = get_time['cooldown']
+            self.current_time = get_time['current_time']
+
             update = net.send({'type': 'update', 'position': (p1.rect.left, p1.rect.top), 'facing_right': p1.facing_right,
-                               'direction': p1.direction.x, 'status': p1.status})
+                               'direction': p1.direction.x, 'status': p1.status, 'is_tagged': p1.is_tagged, 'last_tag': self.last_tag})
             self.player2_pos.x, self.player2_pos.y = update['position']
-            self.player2.update(1, display_surface, self.player2_pos, update['status'], update['direction'], update['facing_right'])
+            self.player2.update(1, display_surface, self.player2_pos, update['status'], update['direction'], update['facing_right'], update['is_tagged'])
             self.player2.draw(display_surface)
+
+            self.switch_tags()

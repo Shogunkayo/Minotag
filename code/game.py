@@ -31,7 +31,7 @@ class Game:
         player.import_assets()
         player.import_dust_run_assets()
 
-        self.map_list[self.current_map].player_setup(player)
+        self.map_list[self.current_map].player_1_setup(player)
 
     def get_player_2(self):
         if not self.player2:
@@ -40,7 +40,7 @@ class Game:
                 self.player2 = True
                 player.import_assets()
                 player.import_dust_run_assets()
-                self.map_list[self.current_map].player2_setup(player)
+                self.map_list[self.current_map].player_2_setup(player)
 
     def run(self):
         while True:

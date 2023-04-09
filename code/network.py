@@ -5,11 +5,8 @@ class Network:
     def __init__(self):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.ip = '192.168.1.8'
-        self.port = 8000
+        self.port = 9000
         self.player = self.connect()
-
-    def get_player(self):
-        return pickle.loads(self.player)
 
     def connect(self):
         try:
@@ -35,4 +32,3 @@ if __name__ == "__main__":
     n = Network()
     print(n.send({'type': "Hello", 'sendme': 'GRRRRRRRR'}))
     print(n.send({'type': "World", 'sendme': 'grrrrrrrr'}))
-    print(n.get_player())
