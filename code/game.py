@@ -17,13 +17,16 @@ class Game:
         self.get_current_map()
         self.get_player_1()
 
+        self.game_ended = False
+
     def get_maps(self):
         maps = self.net.send({'type': 'map_list'})
         self.map_list = maps
 
     def get_current_map(self):
-        self.current_map = 0
-        self.map_list[self.current_map].load_sprites()
+        self.current_map_no = 0
+        self.current_map = self.map_list[self.current_map_no]
+        self.current_map.load_sprites()
 
     def get_player_1(self):
         player = self.net.send({'type': 'create_player', 'id': 0})
@@ -31,7 +34,7 @@ class Game:
         player.import_assets()
         player.import_dust_run_assets()
 
-        self.map_list[self.current_map].player_1_setup(player)
+        self.current_map.player_1_setup(player)
 
     def get_player_2(self):
         if not self.player2:
@@ -40,7 +43,7 @@ class Game:
                 self.player2 = True
                 player.import_assets()
                 player.import_dust_run_assets()
-                self.map_list[self.current_map].player_2_setup(player)
+                self.current_map.player_2_setup(player)
 
     def run(self):
         while True:
@@ -51,7 +54,7 @@ class Game:
 
             self.screen.fill('gray')
             self.get_player_2()
-            self.map_list[self.current_map].run(self.screen, self.net)
+            self.current_map.run(self.screen, self.net)
             pygame.display.update()
             self.clock.tick(120)
 

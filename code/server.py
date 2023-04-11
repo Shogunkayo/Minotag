@@ -27,6 +27,7 @@ class Server():
             'status': ['idle', 'idle'],
             'is_tagged': self.is_tagged
         }
+        self.set_player_variables = self.player_variables.copy()
         self.players = []
 
     def start_server(self):
@@ -107,6 +108,22 @@ class Server():
                             'cooldown': self.cooldown,
                             'current_time': pygame.time.get_ticks()
                         }
+
+                    elif data['type'] == 'ended':
+                        reply = self.player_variables['is_tagged']
+
+                    elif data['type'] == 'reset':
+                        self.player_variables = self.set_player_variables
+                        if player == 0:
+                            reply = self.player_variables
+                        elif player == 1:
+                            reply = {
+                                'position': [self.player_variables['position'][1], self.player_variables['position'][0]],
+                                'status': [self.player_variables['status'][1], self.player_variables['status'][0]],
+                                'direction': [self.player_variables['direction'][1], self.player_variables['direction'][0]],
+                                'facing_right': [self.player_variables['facing_right'][1], self.player_variables['facing_right'][0]],
+                                'is_tagged': [self.player_variables['is_tagged'][1], self.player_variables['is_tagged'][0]]
+                            }
 
                     else:
                         reply = "Hehehehaw"
