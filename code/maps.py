@@ -1,7 +1,7 @@
 import pygame
 import game_data
-from game_data import tile_size
-from tile import StaticTile, Coin, Crate, Palm
+from game_data import tile_size, screen_width
+from tile import StaticTile, Coin, Crate, Palm, Timer
 from util import import_csv_layout, import_cut_graphics
 from decorations import Sky, Clouds
 
@@ -10,6 +10,8 @@ class Map0:
         self.world_shift_x = 0
         self.player2 = None
         self.last_tag = 0
+        self.timer = 20
+        self.timer_cooldown = 0
 
     def load_sprites(self):
         # dust
@@ -45,6 +47,16 @@ class Map0:
         level_width = len(terrain_layout[0]) * tile_size
         self.clouds = Clouds(400, level_width, 20)
 
+        timer_path = '../assets/decoration/timerbg.png'
+        timer_bg = Timer(256, (screen_width/2) - 84, 10, timer_path)
+        self.timer_sprite = pygame.sprite.GroupSingle()
+        self.timer_sprite.add(timer_bg)
+
+        game_over_path = '../assets/decoration/gameover.png'
+        game_over = StaticTile(600, 45, 450, pygame.image.load(game_over_path).convert_alpha())
+        self.game_over_sprite = pygame.sprite.GroupSingle()
+        self.game_over_sprite.add(game_over)
+
     def player_1_setup(self, player):
         self.player = pygame.sprite.GroupSingle()
         self.player.add(player)
@@ -53,6 +65,13 @@ class Map0:
         self.player2 = pygame.sprite.GroupSingle()
         self.player2_pos = pygame.math.Vector2(0, 0)
         self.player2.add(player)
+
+    def manage_timer(self, display_surface):
+        display_surface.blit
+        if self.current_time - self.timer_cooldown > 1000:
+            self.timer_cooldown = self.current_time
+            print(self.timer)
+            self.timer -= 1
 
     def create_tile_group(self, layout, type):
         sprite_group = pygame.sprite.Group()
@@ -185,6 +204,12 @@ class Map0:
         self.horizontal_collision()
         self.vertical_collision()
 
+        # timer
+        self.timer_sprite.update(self.timer)
+        self.timer_sprite.draw(display_surface)
+
+        self.game_over_sprite.draw(display_surface)
+
         # receive and transmit
         if self.player2:
             p1 = self.player.sprite
@@ -200,3 +225,4 @@ class Map0:
             self.player2.draw(display_surface)
 
             self.switch_tags()
+            self.manage_timer(display_surface)

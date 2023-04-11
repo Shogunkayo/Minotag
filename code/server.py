@@ -133,7 +133,7 @@ class Server():
 
 if __name__ == "__main__":
     ip = "192.168.1.8"
-    port = 9000
+    port = 8000
 
     server = Server(ip, port)
     server.run()

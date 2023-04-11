@@ -19,11 +19,24 @@ class StaticTile(Tile):
 
 class Crate(StaticTile):
     def __init__(self, size, x, y, path):
-        super().__init__(size, x, y,
-                         pygame.image.load(path).convert_alpha())
+        super().__init__(size, x, y, pygame.image.load(path).convert_alpha())
         # offset as tile size and crate size are different
         offset_y = y + size
         self.rect = self.image.get_rect(bottomleft=(x, offset_y))
+
+class Timer(StaticTile):
+    def __init__(self, size, x, y, path):
+        super().__init__(size, x, y, pygame.image.load(path).convert_alpha())
+        self.font = pygame.font.Font(None, 64)
+        self.colour = (230, 226, 204)
+        self.bg_image = self.image.copy()
+        self.bg_rect = self.image.get_rect()
+
+    def update(self, time):
+        self.image = self.bg_image.copy()
+        text_surface = self.font.render(str(time), True, self.colour)
+        text_rect = text_surface.get_rect(center=self.bg_rect.center)
+        self.image.blit(text_surface, text_rect)
 
 # Animated tile class for all animated tiles that can be added in future
 class AnimatedTile(Tile):

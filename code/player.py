@@ -123,7 +123,7 @@ class Player(pygame.sprite.Sprite):
                 display_surface.blit(pygame.transform.flip(dust_particle, True, False),
                                      self.rect.bottomright - pygame.math.Vector2(9, 9))
 
-    def tagged_animation(self, display_surface):
+    def tagged_animate(self, display_surface):
         if self.is_tagged:
             display_surface.blit(self.tagged_image, (self.rect.x + 8, self.rect.y - 40))
 
@@ -230,4 +230,4 @@ class Player(pygame.sprite.Sprite):
 
         self.dust_sprite.update(0)
         self.dust_sprite.draw(display_surface)
-        self.tagged_animation(display_surface)
+        self.tagged_animate(display_surface)
