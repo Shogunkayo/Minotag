@@ -4,7 +4,6 @@ from game_data import tile_size, screen_width
 from tile import StaticTile, Coin, Crate, Palm, Timer
 from util import import_csv_layout, import_cut_graphics
 from decorations import Sky, Clouds
-from time import sleep
 
 class Map0:
     def __init__(self):
@@ -83,7 +82,6 @@ class Map0:
                 self.loser = "Player 2"
 
             print(self.loser, "lost")
-            sleep(5)
             self.game_reset(net)
 
     def game_reset(self, net):
@@ -95,19 +93,8 @@ class Map0:
         p1 = self.player.sprite
         p2 = self.player2.sprite
 
-        p1.is_tagged = players['is_tagged'][0]
-        p1.status = players['status'][0]
-        p1.direction.x = players['direction'][0]
-        p1.facing_right = players['facing_right'][0]
-        p1.rect.x = players['position'][0][0]
-        p1.rect.y = players['position'][0][1]
-
-        p2.is_tagged = players['is_tagged'][1]
-        p2.status = players['status'][1]
-        p2.direction.x = players['direction'][1]
-        p1.facing_right = players['facing_right'][1]
-        p2.rect.x = players['position'][1][0]
-        p2.rect.y = players['position'][1][1]
+        p1.reset(players['position'][0], players['is_tagged'][0])
+        p2.reset(players['position'][1], players['is_tagged'][1])
 
     def create_tile_group(self, layout, type):
         sprite_group = pygame.sprite.Group()

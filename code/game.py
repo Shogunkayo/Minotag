@@ -31,7 +31,8 @@ class Game:
     def get_player_1(self):
         player = self.net.send({'type': 'create_player', 'id': 0})
         print(player)
-        player.import_assets()
+        player.import_assets(player.sprite_path)
+        print(player.sprite_path)
         player.import_dust_run_assets()
 
         self.current_map.player_1_setup(player)
@@ -41,7 +42,8 @@ class Game:
             player = self.net.send({'type': 'get_player'})
             if player:
                 self.player2 = True
-                player.import_assets()
+                player.import_assets(player.sprite_path)
+                print(player.sprite_path)
                 player.import_dust_run_assets()
                 self.current_map.player_2_setup(player)
 

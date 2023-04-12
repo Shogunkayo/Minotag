@@ -5,6 +5,49 @@ from maps import Map0
 from player import Player
 import pygame
 from random import shuffle
+import copy
+
+class Room():
+    def __init__(self, id):
+        pygame.init()
+        self.id = id
+        self.current_player = 0
+        self.last_tag = 0
+        self.cooldown = 1000
+
+        self.is_tagged = [True, False]
+        shuffle(self.is_tagged)
+        self.current_player = 0
+        self.player_variables = {
+            'position': [(450, 450), (650, 450)],
+            'direction': [0, 0],
+            'facing_right': [True, True],
+            'status': ['idle', 'idle'],
+            'is_tagged': self.is_tagged
+        }
+        self.set_player_variables = self.player_variables.copy()
+        self.players = []
+
+        def create_player(self, data, player):
+            id = data['id']
+            reply = ''
+            self.players.append(Player(id, self.player_variables['position'][player],self.player_variables['is_tagged'][player]))
+            if player == 0:
+                reply = self.players[0]
+            elif player == 1:
+                reply = self.players[1]
+
+            return reply
+
+        def get_player(self, data, player):
+            if len(self.players) < 2:
+                reply = None
+            elif player == 0:
+                reply = self.players[1]
+            elif player == 1:
+                reply = self.players[0]
+
+            return reply
 
 class Server():
     def __init__(self, ip, port):
@@ -17,17 +60,19 @@ class Server():
         self.start_server()
 
         # player
+        self.player_sprite_paths = ['../assets/character/pirate_1/', '../assets/character/pirate_2/', '../assets/character/pirate_3']
+        shuffle(self.player_sprite_paths)
         self.is_tagged = [True, False]
         shuffle(self.is_tagged)
         self.current_player = 0
-        self.player_variables = {
+        self.set_player_variables = {
             'position': [(450, 450), (650, 450)],
             'direction': [0, 0],
             'facing_right': [True, True],
             'status': ['idle', 'idle'],
             'is_tagged': self.is_tagged
         }
-        self.set_player_variables = self.player_variables.copy()
+        self.player_variables = copy.deepcopy(self.set_player_variables)
         self.players = []
 
     def start_server(self):
@@ -56,7 +101,7 @@ class Server():
 
                     elif data['type'] == 'create_player':
                         id = data['id']
-                        self.players.append(Player(id, self.player_variables['position'][player],self.player_variables['is_tagged'][player]))
+                        self.players.append(Player(id, self.player_variables['position'][player],self.player_variables['is_tagged'][player], self.player_sprite_paths.pop()))
                         if player == 0:
                             reply = self.players[0]
                         elif player == 1:
@@ -113,7 +158,8 @@ class Server():
                         reply = self.player_variables['is_tagged']
 
                     elif data['type'] == 'reset':
-                        self.player_variables = self.set_player_variables
+                        self.player_variables = copy.deepcopy(self.set_player_variables)
+                        print("\n\n\n\n", self.set_player_variables, "\n\n\n\n")
                         if player == 0:
                             reply = self.player_variables
                         elif player == 1:
@@ -149,7 +195,7 @@ class Server():
 
 
 if __name__ == "__main__":
-    ip = "192.168.1.8"
+    ip = "10.30.204.36"
     port = 8000
 
     server = Server(ip, port)

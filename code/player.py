@@ -8,9 +8,9 @@ class ParticleEffect(pygame.sprite.Sprite):
         self.animation_speed = 0.5
 
         if type == 'jump':
-            self.frames = import_folder('../assets/character_pirate/dust_particles/jump/')
+            self.frames = import_folder('../assets/character/dust_particles/jump/')
         if type == 'land':
-            self.frames = import_folder('../assets/character_pirate/dust_particles/land/')
+            self.frames = import_folder('../assets/character/dust_particles/land/')
 
         self.image = self.frames[self.frame_index]
         self.rect = self.image.get_rect(center=pos)
@@ -27,13 +27,13 @@ class ParticleEffect(pygame.sprite.Sprite):
         self.rect.x += x_shift
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, id, pos, is_tagged):
+    def __init__(self, id, pos, is_tagged, sprite_path):
         super().__init__()
         self.player_id = id
         self.frame_index = 0
         self.animation_speed = 0.20
         self.pos = pos
-
+        self.sprite_path = sprite_path
         self.is_tagged = is_tagged
 
         # movement
@@ -61,8 +61,23 @@ class Player(pygame.sprite.Sprite):
         self.on_right = False
         self.on_left = False
 
-    def import_assets(self):
-        path = '../assets/character_pirate/'
+    def reset(self, pos, is_tagged):
+        print(self.rect.x, self.rect.y)
+        self.acceleration = 0
+        self.speed = self.min_speed
+        self.status = 'idle'
+        self.facing_right = True
+        self.on_ground = True
+        self.on_ceiling = False
+        self.on_right = False
+        self.on_left = False
+        self.direction.x = 0
+        self.rect.x = pos[0]
+        self.rect.y = pos[1]
+        self.is_tagged = is_tagged
+        print(self.rect.x, self.rect.y)
+
+    def import_assets(self, path):
         self.animations = {'idle': [], 'fall': [], 'run': [], 'jump': []}
 
         for animation in self.animations.keys():
@@ -74,11 +89,11 @@ class Player(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(topleft=self.pos)
         self.direction = pygame.math.Vector2(0, 0)
 
-        tagged_path = '../assets/character_pirate/tagged.png'
+        tagged_path = '../assets/character/tagged.png'
         self.tagged_image = pygame.image.load(tagged_path).convert_alpha()
 
     def import_dust_run_assets(self):
-        self.dust_run_assets = import_folder('../assets/character_pirate/dust_particles/run/')
+        self.dust_run_assets = import_folder('../assets/character/dust_particles/run/')
         self.dust_frame_index = 0
         self.dust_animation_speed = 0.15
         self.dust_sprite = pygame.sprite.GroupSingle()
@@ -120,8 +135,7 @@ class Player(pygame.sprite.Sprite):
             if self.facing_right:
                 display_surface.blit(dust_particle, self.rect.bottomleft - pygame.math.Vector2(9, 9))
             else:
-                display_surface.blit(pygame.transform.flip(dust_particle, True, False),
-                                     self.rect.bottomright - pygame.math.Vector2(9, 9))
+                display_surface.blit(pygame.transform.flip(dust_particle, True, False), self.rect.bottomright - pygame.math.Vector2(9, 9))
 
     def tagged_animate(self, display_surface):
         if self.is_tagged:
