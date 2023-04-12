@@ -10,7 +10,7 @@ class Map0:
         self.world_shift_x = 0
         self.player2 = None
         self.last_tag = 0
-        self.set_timer = 5
+        self.set_timer = 30
         self.timer = self.set_timer
         self.timer_cooldown = 0
         self.game_ended = False
@@ -67,7 +67,6 @@ class Map0:
     def manage_timer(self, display_surface):
         if self.current_time - self.timer_cooldown > 1000:
             self.timer_cooldown = self.current_time
-            print(self.timer)
             self.timer -= 1
 
         if self.timer == 0:
@@ -89,12 +88,14 @@ class Map0:
         self.game_ended = False
         self.timer = self.set_timer
 
-        players = net.send({'type': 'reset'})
-        p1 = self.player.sprite
-        p2 = self.player2.sprite
+        reset = input("Restart?")
+        if reset == 'y':
+            players = net.send({'type': 'reset'})
+            p1 = self.player.sprite
+            p2 = self.player2.sprite
 
-        p1.reset(players['position'][0], players['is_tagged'][0])
-        p2.reset(players['position'][1], players['is_tagged'][1])
+            p1.reset(players['position'][0], players['is_tagged'][0])
+            p2.reset(players['position'][1], players['is_tagged'][1])
 
     def create_tile_group(self, layout, type):
         sprite_group = pygame.sprite.Group()

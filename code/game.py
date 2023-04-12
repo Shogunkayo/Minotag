@@ -11,20 +11,42 @@ class Game:
         self.clock = pygame.time.Clock()
 
         self.net = Network()
-        self.player2 = False
+        self.status = 'open'
 
-        self.get_maps()
-        self.get_current_map()
-        self.get_player_1()
+        self.connect_server()
+        self.join_room()
 
-        self.game_ended = False
+    def connect_server(self):
+        username = input("Enter username: ")
+        req = self.net.send_server({'type': 'login', 'username': username})
+        if req['status'] == 1:
+            self.status = 'logged_in'
+            self.username = username
+
+    def create_room(self):
+        req = self.net.send_server({'type': 'create_room'})
+        if req['status'] == 1:
+            self.status = 'in_room'
+            self.room_leader = True
+            self.net.connect_tcp(req['tcp_port'])
+
+    def join_room(self):
+        room_id = input("Enter room number: ")
+        req = self.net.send_server({'type': 'join_room', 'room_id': room_id})
+        if req['status'] == 1:
+            self.status = 'in_room'
+            self.net.connect_tcp(req['tcp_port'])
 
     def get_maps(self):
+        print("Sent")
         maps = self.net.send({'type': 'map_list'})
+        print("Received")
         self.map_list = maps
 
     def get_current_map(self):
-        self.current_map_no = 0
+        if self.room_leader:
+            self.current_map_no = int(input("Select map: "))
+            self.current_map_no = 0
         self.current_map = self.map_list[self.current_map_no]
         self.current_map.load_sprites()
 
@@ -43,7 +65,6 @@ class Game:
             if player:
                 self.player2 = True
                 player.import_assets(player.sprite_path)
-                print(player.sprite_path)
                 player.import_dust_run_assets()
                 self.current_map.player_2_setup(player)
 
@@ -62,4 +83,3 @@ class Game:
 
 if __name__ == "__main__":
     game = Game()
-    game.run()

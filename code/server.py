@@ -1,91 +1,103 @@
 import socket
-from _thread import start_new_thread
 import pickle
 from maps import Map0
 from player import Player
 import pygame
 from random import shuffle
 import copy
+import threading
 
-class Room():
-    def __init__(self, id):
-        pygame.init()
-        self.id = id
-        self.current_player = 0
-        self.last_tag = 0
-        self.cooldown = 1000
+class Room(threading.Thread):
+    def __init__(self, ip, udp_port, tcp_port, room_id):
+        threading.Thread.__init__(self)
+        self.ip = ip
+        self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.udp.bind((ip, udp_port))
+        self.tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.tcp.bind((ip, tcp_port))
+        self.tcp.listen()
 
-        self.is_tagged = [True, False]
-        shuffle(self.is_tagged)
-        self.current_player = 0
-        self.player_variables = {
-            'position': [(450, 450), (650, 450)],
-            'direction': [0, 0],
-            'facing_right': [True, True],
-            'status': ['idle', 'idle'],
-            'is_tagged': self.is_tagged
-        }
-        self.set_player_variables = self.player_variables.copy()
-        self.players = []
+        self.room_id = room_id
 
-        def create_player(self, data, player):
-            id = data['id']
-            reply = ''
-            self.players.append(Player(id, self.player_variables['position'][player],self.player_variables['is_tagged'][player]))
-            if player == 0:
-                reply = self.players[0]
-            elif player == 1:
-                reply = self.players[1]
+    def update_room(self, room_info):
+        self.room_info = room_info
+        print(self.room_info)
 
-            return reply
+    def threaded_tcp(self, addr, connection):
+        connection.sendall(pickle.dumps("Connected"))
+        while True:
+            try:
+                data = connection.recv(2048)
+                if not data:
+                    print(addr,"left room", self.room_id)
+                    break
+                else:
+                    data = pickle.loads(data)
 
-        def get_player(self, data, player):
-            if len(self.players) < 2:
-                reply = None
-            elif player == 0:
-                reply = self.players[1]
-            elif player == 1:
-                reply = self.players[0]
+                    if data['type'] == 'get_maps':
+                        reply = [Map0()]
 
-            return reply
+                    elif data['type'] == 'set_map':
+                        self.map = int(data['map_no'])
+                        reply = {'status': 1}
 
-class Server():
+                    else:
+                        reply = "Invalid Request"
+
+                    print(self.room_id, "received:", data)
+                    print(self.room_id, "sending:", reply)
+
+                    connection.sendall(pickle.dumps(reply))
+
+            except Exception as e:
+                print(e)
+
+    def run(self):
+        while True:
+            connection, addr = self.tcp.accept()
+            print(addr, "joined room", self.room_id)
+            threading.Thread(target=self.threaded_tcp, args=(addr, connection)).start()
+
+class Server(threading.Thread):
     def __init__(self, ip, port):
-        pygame.init()
-        self.clock = pygame.time.Clock()
-        self.last_tag = 0
-        self.cooldown = 1500
-        self.server = ip
+        threading.Thread.__init__(self)
+        self.ip = ip
         self.port = port
         self.start_server()
 
-        # player
-        self.player_sprite_paths = ['../assets/character/pirate_1/', '../assets/character/pirate_2/', '../assets/character/pirate_3']
-        shuffle(self.player_sprite_paths)
-        self.is_tagged = [True, False]
-        shuffle(self.is_tagged)
-        self.current_player = 0
-        self.set_player_variables = {
-            'position': [(450, 450), (650, 450)],
-            'direction': [0, 0],
-            'facing_right': [True, True],
-            'status': ['idle', 'idle'],
-            'is_tagged': self.is_tagged
-        }
-        self.player_variables = copy.deepcopy(self.set_player_variables)
-        self.players = []
+        self.connected_players = {}
+        self.available_rooms = [str(i) for i in range(1, 11, 2)]
+        self.active_rooms = {}
 
     def start_server(self):
-        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.s.bind((self.server, self.port))
-        self.s.listen()
-        print("Server Started")
+        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server.bind((self.ip, self.port))
+        self.server.listen()
+        print("Server started")
 
-    def threaded_client(self, addr, connection, player):
-        connection.sendall(pickle.dumps(self.players))
+    def create_room(self, addr, room_id):
+        self.active_rooms[room_id] = {
+            'room': Room(self.ip, self.port+int(room_id), self.port+int(room_id)+1, room_id),
+            'room_info': {
+                'room_leader': addr[0],
+                'players': [addr[0]]
+            }
+        }
+
+        self.connected_players[addr[0]]['in_room'] = room_id
+        self.active_rooms[room_id]['room'].update_room(self.active_rooms[room_id]['room_info'])
+
+        while True:
+            self.active_rooms[room_id]['room'].run()
+
+    def threaded_create_room(self, addr, room_id):
+        room_thread = threading.Thread(target=self.create_room, args=(addr, room_id))
+        room_thread.start()
+
+    def threaded_client(self, addr, connection):
+        connection.sendall(pickle.dumps("Connected"))
         reply = ""
         while True:
-            try:
                 data = connection.recv(2048)
                 if not data:
                     print("Disconnected:", addr)
@@ -93,110 +105,67 @@ class Server():
                 else:
                     data = pickle.loads(data)
 
-                    if data['type'] == 'map_list':
-                        reply = [Map0()]
-
-                    elif data['type'] == 'get_id':
-                        reply = player
-
-                    elif data['type'] == 'create_player':
-                        id = data['id']
-                        self.players.append(Player(id, self.player_variables['position'][player],self.player_variables['is_tagged'][player], self.player_sprite_paths.pop()))
-                        if player == 0:
-                            reply = self.players[0]
-                        elif player == 1:
-                            reply = self.players[1]
-
-                    elif data['type'] == 'get_player':
-                        if len(self.players) < 2:
-                            reply = None
-                        elif player == 0:
-                            reply = self.players[1]
-                        elif player == 1:
-                            reply = self.players[0]
-
-                    elif data['type'] == 'update':
-                        self.last_tag = data['last_tag']
-
-                        if player == 0:
-                            self.player_variables['position'][0] = data['position']
-                            self.player_variables['direction'][0] = data['direction']
-                            self.player_variables['facing_right'][0] = data['facing_right']
-                            self.player_variables['status'][0] = data['status']
-                            self.player_variables['is_tagged'][0] = data['is_tagged']
-
-                            reply = {
-                                'position': self.player_variables['position'][1],
-                                'direction': self.player_variables['direction'][1],
-                                'facing_right': self.player_variables['facing_right'][1],
-                                'status': self.player_variables['status'][1],
-                                'is_tagged': self.player_variables['is_tagged'][1]
-                            }
-
-                        elif player == 1:
-                            self.player_variables['position'][1] = data['position']
-                            self.player_variables['direction'][1] = data['direction']
-                            self.player_variables['facing_right'][1] = data['facing_right']
-                            self.player_variables['status'][1] = data['status']
-                            self.player_variables['is_tagged'][1] = data['is_tagged']
-
-                            reply = {
-                                'position': self.player_variables['position'][0],
-                                'direction': self.player_variables['direction'][0],
-                                'facing_right': self.player_variables['facing_right'][0],
-                                'status': self.player_variables['status'][0],
-                                'is_tagged': self.player_variables['is_tagged'][0]
-                            }
-
-                    elif data['type'] == 'get_time':
-                        reply = {
-                            'cooldown': self.cooldown,
-                            'current_time': pygame.time.get_ticks()
+                    if data['type'] == 'login':
+                        self.connected_players[addr[0]] = {
+                            'username': data['username']
                         }
 
-                    elif data['type'] == 'ended':
-                        reply = self.player_variables['is_tagged']
+                        reply = {'status': 1}
 
-                    elif data['type'] == 'reset':
-                        self.player_variables = copy.deepcopy(self.set_player_variables)
-                        print("\n\n\n\n", self.set_player_variables, "\n\n\n\n")
-                        if player == 0:
-                            reply = self.player_variables
-                        elif player == 1:
+                    elif data['type'] == 'create_room':
+                        room_id = self.available_rooms.pop()
+                        self.threaded_create_room(addr, room_id)
+
+                        reply = {
+                            'status': 1,
+                            'udp_port': self.port + int(room_id),
+                            'tcp_port': self.port + int(room_id) + 1
+                        }
+
+                    elif data['type'] == 'join_room':
+                        room_id = data['room_id']
+                        try:
+                            self.connected_players[addr[0]]['in_room'] = room_id
+                            self.active_rooms[room_id]['room_info']['players'].append(addr[0])
+
+                            self.active_rooms[room_id]['room'].update_room(self.active_rooms[room_id]['room_info'])
+
+                            print("Joined room")
+                            print(self.active_rooms)
+                            print(self.connected_players)
+
                             reply = {
-                                'position': [self.player_variables['position'][1], self.player_variables['position'][0]],
-                                'status': [self.player_variables['status'][1], self.player_variables['status'][0]],
-                                'direction': [self.player_variables['direction'][1], self.player_variables['direction'][0]],
-                                'facing_right': [self.player_variables['facing_right'][1], self.player_variables['facing_right'][0]],
-                                'is_tagged': [self.player_variables['is_tagged'][1], self.player_variables['is_tagged'][0]]
+                                'status': 1,
+                                'udp_port': self.port + int(room_id),
+                                'tcp_port': self.port + int(room_id) + 1
                             }
 
-                    else:
-                        reply = "Hehehehaw"
+                        except KeyError:
+                            reply = {'status': 0}
 
-                    print(player, "Recieved: ", data)
+                    else:
+                        reply = "Invalid Request"
+
+                    print("Recieved: ", data)
                     print("Sending: ", reply)
 
                 connection.sendall(pickle.dumps(reply))
 
-            except Exception as e:
-                print(e)
-
-        print("Connection Ended: ", addr)
+                if data['type'] in ['join_room', 'create_room'] and reply['status'] == 1:
+                    print("Disconnected:", addr)
+                    break
 
     def run(self):
         while True:
-            connection, addr = self.s.accept()
+            connection, addr = self.server.accept()
             print("Connected to:", addr)
 
-            start_new_thread(self.threaded_client, (addr, connection, self.current_player))
-
-            self.current_player += 1
-
+            server_thread = threading.Thread(target=self.threaded_client, args=(addr, connection))
+            server_thread.start()
 
 if __name__ == "__main__":
-    ip = "10.30.204.36"
-    port = 8000
+    ip = "192.168.1.8"
+    port = 4000
 
     server = Server(ip, port)
     server.run()
