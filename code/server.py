@@ -60,7 +60,7 @@ class Server():
         self.start_server()
 
         # player
-        self.player_sprite_paths = ['../assets/character/pirate_1/', '../assets/character/pirate_2/', '../assets/character/pirate_3']
+        self.player_sprite_paths = ['../assets/character/pirate_1/', '../assets/character/pirate_2/']
         shuffle(self.player_sprite_paths)
         self.is_tagged = [True, False]
         shuffle(self.is_tagged)
