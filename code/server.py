@@ -9,6 +9,7 @@ import threading
 
 class Room(threading.Thread):
     def __init__(self, ip, udp_port, tcp_port, room_id):
+        pygame.init()
         threading.Thread.__init__(self)
         self.ip = ip
         self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -18,6 +19,24 @@ class Room(threading.Thread):
         self.tcp.listen()
 
         self.room_id = room_id
+        self.game_started = False
+        self.map = None
+        self.last_tag = 0
+        self.cooldown = 1000
+
+        self.player_sprite_paths = ['../assets/character/pirate_1/', '../assets/character/pirate_2/']
+        shuffle(self.player_sprite_paths)
+        self.is_tagged = [True, False]
+        shuffle(self.is_tagged)
+        self.current_player = 0
+        self.set_player_variables = {
+            'position': [(450, 450), (650, 450)],
+            'direction': [0, 0],
+            'facing_right': [True, True],
+            'status': ['idle', 'idle'],
+            'is_tagged': self.is_tagged
+        }
+        self.player_variables = copy.deepcopy(self.set_player_variables)
 
     def update_room(self, room_info):
         self.room_info = room_info
@@ -37,21 +56,54 @@ class Room(threading.Thread):
                     if data['type'] == 'get_maps':
                         reply = [Map0()]
 
-                    elif data['type'] == 'set_map':
+                    elif data['type'] == 'set_current_map':
                         self.map = int(data['map_no'])
                         reply = {'status': 1}
 
-                    elif data['type'] == 'test':
-                        reply = 'Hehehehaw'
+                    elif data['type'] == 'get_current_map':
+                        if self.map is not None:
+                            reply = {'status': 1, 'map': self.map}
+                        else:
+                            reply = {'status': 0}
+
+                    elif data['type'] == 'start_game':
+                        if self.room_info['room_leader'] == addr[0] and data['is_leader']:
+                            self.game_started = True
+                            reply = {'status': 1}
+                        else:
+                            if self.game_started:
+                                reply = {'status': 1}
+                            else:
+                                reply = {'status': 0}
+
+                    elif data['type'] == 'create_player':
+                        player_no = self.room_info['players'].index(addr[0])
+                        self.room_info['player_objects'][addr[0] + str(addr[1])] = Player(0, self.player_variables['position'][player_no], self.player_variables['is_tagged'][player_no], self.player_sprite_paths.pop())
+                        reply = {'status': 1, 'player': self.room_info['player_objects'][addr[0] + str(addr[1])]}
+
+                    elif data['type'] == 'get_player':
+                        players = []
+                        print("\n\n\n", self.room_info, "\n\n\n")
+                        print("LMAO", addr)
+                        for k in self.room_info['player_objects']:
+                            if k != addr[0] + str(addr[1]):
+                                players.append(self.room_info['player_objects'][k])
+
+                        if len(players) != 0:
+                            reply = {'status': 1, 'players': players}
+                        else:
+                            reply = {'status': 0}
+
+                    elif data['type'] == 'ended':
+                        reply = self.player_variables['is_tagged']
 
                     else:
                         reply = "Invalid Request"
 
-                    print(self.room_id, "received:", data)
+                    print(self.room_id, "IP:", addr, "received:", data)
                     print(self.room_id, "sending:", reply)
 
                     connection.sendall(pickle.dumps(reply))
-                    print("reply sent from server")
 
             except Exception as e:
                 print(e)
@@ -84,7 +136,8 @@ class Server(threading.Thread):
             'room': Room(self.ip, self.port+int(room_id), self.port+int(room_id)+1, room_id),
             'room_info': {
                 'room_leader': addr[0],
-                'players': [addr[0]]
+                'players': [addr[0]],
+                'player_objects': {}
             }
         }
 
@@ -102,6 +155,7 @@ class Server(threading.Thread):
         connection.sendall(pickle.dumps("Connected"))
         reply = ""
         while True:
+            try:
                 data = connection.recv(2048)
                 if not data:
                     print("Disconnected:", addr)
@@ -155,6 +209,9 @@ class Server(threading.Thread):
 
                 connection.sendall(pickle.dumps(reply))
 
+            except Exception as e:
+                print(e)
+
     def run(self):
         while True:
             connection, addr = self.server.accept()
@@ -165,7 +222,7 @@ class Server(threading.Thread):
 
 if __name__ == "__main__":
     ip = "127.0.0.1"
-    port = 5000
+    port = 6000
 
     server = Server(ip, port)
     server.run()

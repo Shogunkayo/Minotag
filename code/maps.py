@@ -74,7 +74,7 @@ class Map0:
 
     def game_over(self, display_surface, net):
         if not self.loser:
-            loser = net.send({'type': 'ended'})
+            loser = net.send_tcp({'type': 'ended'})
             if loser[0]:
                 self.loser = "Player 1"
             else:
@@ -204,7 +204,6 @@ class Map0:
                     p1.is_tagged = True
                     p2.is_tagged = False
                 self.last_tag = self.current_time
-
 
     def run(self, display_surface, net):
         # decoration sprites

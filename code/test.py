@@ -1,22 +1,40 @@
 import socket
-import pickle
+import threading
+import queue
 
-def check_server(address, port):
-    try:
-        # Create a TCP socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((address, port))
-        response = s.send(pickle.dumps({'type': 'get_maps'}))
-        print(response)
-        return True
-    except:
-        return False
+messages = queue.Queue()
+clients = []
 
-if __name__ == '__main__':
-    server_address = '10.20.204.86'
-    server_port = 4010
+server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+server.bind(('127.0.0.1', 8000))
 
-    if check_server(server_address, server_port):
-        print(f"The server at {server_address}:{server_port} is running")
-    else:
-        print(f"The server at {server_address}:{server_port} is not running")
+def udp_receive():
+    while True:
+        try:
+            message, addr = server.recvfrom(2048)
+            messages.put((message, addr))
+        except:
+            pass
+
+def udp_broadcast():
+    while True:
+        while not messages.empty():
+            message, addr = messages.get()
+            print(message.decode())
+            if addr not in clients:
+                clients.append(addr)
+            for client in clients:
+                try:
+                    if message.decode().startswith("SIGNUP_TAG:"):
+                        name = message.decode()[message.decode().index(":")+1:]
+                        server.sendto(f"{name} joined!".encode(), client)
+                    else:
+                        server.sendto(message, client)
+                except:
+                    clients.remove(client)
+
+t1 = threading.Thread(target=udp_receive)
+t2 = threading.Thread(target=udp_broadcast)
+
+t1.start()
+t2.start()

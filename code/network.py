@@ -8,10 +8,10 @@ class Network:
         self.tcp_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.udp_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_ip = '127.0.0.1'
-        self.server_port = 5000
-        self.player = self.connect()
+        self.server_port = 6000
+        self.player = self.connect_server()
 
-    def connect(self):
+    def connect_server(self):
         try:
             self.server.connect((self.server_ip, self.server_port))
             return self.server.recv(2048)
@@ -39,15 +39,22 @@ class Network:
             print(e)
 
     def send_tcp(self, data):
-            print("Received data:", data)
+        try:
             data = pickle.dumps(data)
             self.tcp_client.send(data)
             self.tcp_client.settimeout(20)
-            response = pickle.loads(self.server.recv(2048))
-            print("Received response:", response)
+            response = pickle.loads(self.tcp_client.recv(2048))
             return response
+
+        except socket.timeout:
+            print("Server timed out")
+        except socket.error as e:
+            print(e)
 
 if __name__ == "__main__":
     n = Network()
-    print(n.send({'type': "Hello", 'sendme': 'GRRRRRRRR'}))
-    print(n.send({'type': "World", 'sendme': 'grrrrrrrr'}))
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect(('127.0.0.1', 5010))
+    print(pickle.loads(s.recv(2048)))
+    s.send(pickle.dumps({'type': 'get_maps'}))
+    print(pickle.loads(s.recv(2048)))
