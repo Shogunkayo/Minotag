@@ -10,7 +10,7 @@ class Map0:
         self.world_shift_x = 0
         self.player2 = None
         self.last_tag = 0
-        self.set_timer = 5
+        self.set_timer = 20
         self.timer = self.set_timer
         self.timer_cooldown = 0
         self.game_ended = False
