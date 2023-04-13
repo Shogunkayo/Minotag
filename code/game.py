@@ -2,6 +2,7 @@ import pygame
 import sys
 from game_data import screen_width, screen_height
 from network import Network
+import pickle
 
 class Game:
     def __init__(self):
@@ -14,7 +15,7 @@ class Game:
         self.status = 'open'
 
         self.connect_server()
-        self.join_room()
+        self.create_room()
 
     def connect_server(self):
         username = input("Enter username: ")
@@ -28,7 +29,10 @@ class Game:
         if req['status'] == 1:
             self.status = 'in_room'
             self.room_leader = True
-            self.net.connect_tcp(req['tcp_port'])
+            print(req['tcp_port'])
+            print(pickle.loads(self.net.connect_tcp(req['tcp_port'])))
+            test = self.net.send_tcp({'type': 'tedsadast'})
+            print(test)
 
     def join_room(self):
         room_id = input("Enter room number: ")
@@ -39,8 +43,8 @@ class Game:
 
     def get_maps(self):
         print("Sent")
-        maps = self.net.send({'type': 'map_list'})
-        print("Received")
+        maps = self.net.send_tcp({'type': 'get_maps'})
+        print("Received:", maps)
         self.map_list = maps
 
     def get_current_map(self):

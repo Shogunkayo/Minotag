@@ -24,7 +24,7 @@ class Room(threading.Thread):
         print(self.room_info)
 
     def threaded_tcp(self, addr, connection):
-        connection.sendall(pickle.dumps("Connected"))
+        connection.sendall(pickle.dumps("Connected to room"))
         while True:
             try:
                 data = connection.recv(2048)
@@ -41,6 +41,9 @@ class Room(threading.Thread):
                         self.map = int(data['map_no'])
                         reply = {'status': 1}
 
+                    elif data['type'] == 'test':
+                        reply = 'Hehehehaw'
+
                     else:
                         reply = "Invalid Request"
 
@@ -48,6 +51,7 @@ class Room(threading.Thread):
                     print(self.room_id, "sending:", reply)
 
                     connection.sendall(pickle.dumps(reply))
+                    print("reply sent from server")
 
             except Exception as e:
                 print(e)
@@ -144,16 +148,12 @@ class Server(threading.Thread):
                             reply = {'status': 0}
 
                     else:
-                        reply = "Invalid Request"
+                        reply = "Invalid"
 
                     print("Recieved: ", data)
                     print("Sending: ", reply)
 
                 connection.sendall(pickle.dumps(reply))
-
-                if data['type'] in ['join_room', 'create_room'] and reply['status'] == 1:
-                    print("Disconnected:", addr)
-                    break
 
     def run(self):
         while True:
@@ -164,8 +164,8 @@ class Server(threading.Thread):
             server_thread.start()
 
 if __name__ == "__main__":
-    ip = "192.168.1.8"
-    port = 4000
+    ip = "127.0.0.1"
+    port = 5000
 
     server = Server(ip, port)
     server.run()
