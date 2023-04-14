@@ -11,12 +11,15 @@ class Map0:
     def __init__(self):
         self.world_shift_x = 0
         self.player2 = None
+
         self.last_tag = 0
-        self.set_timer = 180
+        self.set_timer = 3
         self.timer = self.set_timer
         self.timer_cooldown = 0
+
         self.game_ended = False
         self.loser = None
+
         self.thread_started = False
 
     def load_sprites(self):
@@ -58,9 +61,10 @@ class Map0:
         self.timer_sprite = pygame.sprite.GroupSingle()
         self.timer_sprite.add(timer_bg)
 
-    def player_1_setup(self, player):
+    def player_1_setup(self, player, username):
         self.player = pygame.sprite.GroupSingle()
         self.player.add(player)
+        self.username = username
 
     def player_2_setup(self, player):
         self.player2 = pygame.sprite.GroupSingle()
@@ -78,27 +82,27 @@ class Map0:
     def game_over(self, display_surface, net):
         if not self.loser:
             loser = net.send_tcp({'type': 'ended'})
-            if loser[0]:
-                self.loser = "Player 1"
-            else:
-                self.loser = "Player 2"
+            try:
+                if loser[0]:
+                    self.loser = "Player 1"
+                else:
+                    self.loser = "Player 2"
+                print(self.loser, "lost")
 
-            print(self.loser, "lost")
-            self.game_reset(net)
+            except KeyError:
+                pass
 
     def game_reset(self, net):
         self.loser = None
         self.game_ended = False
         self.timer = self.set_timer
 
-        reset = input("Restart?")
-        if reset == 'y':
-            players = net.send_tcp({'type': 'reset'})
-            p1 = self.player.sprite
-            p2 = self.player2.sprite
+        players = net.send_tcp({'type': 'reset'})
+        p1 = self.player.sprite
+        p2 = self.player2.sprite
 
-            p1.reset(players['position'][0], players['is_tagged'][0])
-            p2.reset(players['position'][1], players['is_tagged'][1])
+        p1.reset(players['position'][0], players['is_tagged'][0])
+        p2.reset(players['position'][1], players['is_tagged'][1])
 
     def create_tile_group(self, layout, type):
         sprite_group = pygame.sprite.Group()
@@ -252,7 +256,7 @@ class Map0:
                     self.tag_cooldown = get_time['cooldown']
                     self.current_time = get_time['current_time']
 
-                    update = net.send_udp({'type': 'update', 'position': (p1.rect.left, p1.rect.top), 'facing_right': p1.facing_right,
+                    update = net.send_udp({'type': 'update', 'position': (p1.rect.left, p1.rect.top), 'facing_right': p1.facing_right, 'username': self.username,
                                            'direction': p1.direction.x, 'status': p1.status, 'is_tagged': p1.is_tagged, 'last_tag': self.last_tag})
 
                     self.player2_pos.x, self.player2_pos.y = update['position']

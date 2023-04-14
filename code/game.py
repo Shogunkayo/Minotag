@@ -3,9 +3,12 @@ import sys
 from game_data import screen_width, screen_height
 from network import Network
 from time import sleep
-import threading
 
 class Game:
+    '''
+    Game object which the client uses
+    '''
+
     def __init__(self):
         pygame.init()
 
@@ -23,30 +26,63 @@ class Game:
     def connect_server(self):
         username = input("Enter username: ")
         req = self.net.send_server({'type': 'login', 'username': username})
+
         if req['status'] == 1:
             self.status = 'logged_in'
             self.username = username
+        else:
+            print("Login failed")
+
+    def display_home(self):
+        c = int(input("1 => Create Room\n2 => Join Room\n3 => Logout\n"))
+
+        if c == 1:
+            self.create_room()
+        elif c == 2:
+            self.join_room()
+        elif c == 3:
+            self.status = 'open'
 
     def create_room(self):
-        req = self.net.send_server({'type': 'create_room'})
+        req = self.net.send_server({'type': 'create_room', 'username': self.username})
         if req['status'] == 1:
             self.status = 'in_room'
             self.room_leader = True
-            print(req['tcp_port'])
-            print(req['udp_port'])
+
             sleep(1)
+
             self.net.connect_tcp(req['tcp_port'])
             self.net.udp_port = req['udp_port']
             self.get_maps()
 
     def join_room(self):
         room_id = input("Enter room number: ")
-        req = self.net.send_server({'type': 'join_room', 'room_id': room_id})
+        req = self.net.send_server({'type': 'join_room', 'room_id': room_id, 'username': self.username})
+
         if req['status'] == 1:
             self.status = 'in_room'
             self.net.connect_tcp(req['tcp_port'])
             self.net.udp_port = req['udp_port']
             self.get_maps()
+
+    def display_room(self):
+        self.get_current_map()
+
+        if self.current_map:
+            if self.room_leader:
+                c = int(input("1 => Start Game\n"))
+                if c == 1:
+                    req = self.net.send_tcp({'type': 'start_game', 'is_leader': True})
+                    if req['status']:
+                        self.status = 'loading_game'
+            else:
+                req = self.net.send_tcp({'type': 'start_game', 'is_leader': False})
+                if req['status']:
+                    self.status = 'loading_game'
+                else:
+                    sleep(0.5)
+        else:
+            sleep(0.5)
 
     def get_maps(self):
         maps = self.net.send_tcp({'type': 'get_maps'})
@@ -59,20 +95,22 @@ class Game:
             self.net.send_tcp({'type': 'set_current_map', 'map_no': self.current_map_no})
         else:
             req = self.net.send_tcp({'type': 'get_current_map'})
+
             if req['status'] == 0:
                 return
+
             self.current_map_no = req['map']
 
         self.current_map = self.map_list[self.current_map_no]
 
     def get_player_1(self):
         req = self.net.send_tcp({'type': 'create_player'})
+
         if req['status']:
             player = req['player']
             player.import_assets(player.sprite_path)
             player.import_dust_run_assets()
-
-            self.current_map.player_1_setup(player)
+            self.current_map.player_1_setup(player, self.username)
             self.status = "loaded_player"
         else:
             print("Error retriveing player")
@@ -80,6 +118,7 @@ class Game:
     def get_player_2(self):
         if not self.player2:
             req = self.net.send_tcp({'type': 'get_player', 'is_leader': self.room_leader})
+
             if req['status']:
                 self.player2 = True
                 player = req['players'][0]
@@ -94,6 +133,24 @@ class Game:
         print("Started client side thread")
         self.status = 'starting_round'
 
+    def game_restart(self):
+        if self.room_leader:
+            c = int(input("1 => Restart\n"))
+
+            if c == 1:
+                req = self.net.send_tcp({'type': 'do_restart', 'is_leader': self.room_leader})
+
+                if req['status']:
+                    self.current_map.game_reset(self.net)
+        else:
+            print("Waiting for room leader to restart")
+            req = self.net.send_tcp({'type': 'is_restart'})
+
+            if req['status']:
+                self.current_map.game_reset(self.net)
+            else:
+                sleep(0.5)
+
     def run(self):
         while True:
             for event in pygame.event.get():
@@ -107,29 +164,10 @@ class Game:
                 self.connect_server()
 
             elif self.status == 'logged_in':
-                c = int(input("1 => Create Room\n2=> Join Room\n"))
-                if c == 1:
-                    self.create_room()
-                elif c == 2:
-                    self.join_room()
+                self.display_home()
 
             elif self.status == 'in_room':
-                self.get_current_map()
-                if self.current_map:
-                    if self.room_leader:
-                        c = int(input("1 => Start Game"))
-                        if c == 1:
-                            req = self.net.send_tcp({'type': 'start_game', 'is_leader': True})
-                            if req['status']:
-                                self.status = 'loading_game'
-                    else:
-                        req = self.net.send_tcp({'type': 'start_game', 'is_leader': False})
-                        if req['status']:
-                            self.status = 'loading_game'
-                        else:
-                            sleep(0.5)
-                else:
-                    sleep(0.5)
+                self.display_room()
 
             elif self.status == 'loading_game':
                 self.current_map.load_sprites()
@@ -143,6 +181,8 @@ class Game:
 
             elif self.status == 'starting_round':
                 self.current_map.run(self.screen)
+                if self.current_map.game_ended:
+                    self.game_restart()
 
             else:
                 sys.exit()

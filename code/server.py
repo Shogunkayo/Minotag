@@ -25,6 +25,7 @@ class Room(threading.Thread):
         self.map = None
         self.last_tag = 0
         self.cooldown = 1000
+        self.is_restart = False
 
         self.player_sprite_paths = ['../assets/character/pirate_1/', '../assets/character/pirate_2/']
         shuffle(self.player_sprite_paths)
@@ -100,6 +101,33 @@ class Room(threading.Thread):
 
                     elif data['type'] == 'ended':
                         reply = self.player_variables['is_tagged']
+                        self.is_restart = False
+
+                    elif data['type'] == 'is_restart':
+                        reply = {'status': self.is_restart}
+
+                    elif data['type'] == 'do_restart':
+                        if self.room_info['room_leader'] == addr[0] and data['is_leader']:
+                            self.is_restart = True
+                            shuffle(self.set_player_variables['is_tagged'])
+                            reply = {'status': 1}
+                        else:
+                            reply = {'status': 0}
+
+                    elif data['type'] == 'reset':
+                        self.player_variables = copy.deepcopy(self.set_player_variables)
+
+                        player_no = self.room_info['player_room'].index(addr[0] + str(addr[1]))
+                        if player_no == 0:
+                            reply = self.player_variables
+                        elif player_no == 1:
+                            reply = {
+                                'position': [self.player_variables['position'][1], self.player_variables['position'][0]],
+                                'status': [self.player_variables['status'][1], self.player_variables['status'][0]],
+                                'direction': [self.player_variables['direction'][1], self.player_variables['direction'][0]],
+                                'facing_right': [self.player_variables['facing_right'][1], self.player_variables['facing_right'][0]],
+                                'is_tagged': [self.player_variables['is_tagged'][1], self.player_variables['is_tagged'][0]]
+                            }
 
                     else:
                         reply = "Invalid Request"
@@ -139,7 +167,7 @@ class Room(threading.Thread):
                     elif data['type'] == 'update':
                         self.last_tag = data['last_tag']
 
-                        player_no = self.clients.index(addr)
+                        player_no = self.room_info['players_udp'].index(data['username'])
 
                         for k,v in self.player_variables.items():
                             self.player_variables[k][player_no] = data[k]
@@ -190,14 +218,15 @@ class Server(threading.Thread):
         self.server.listen()
         print("Server started")
 
-    def create_room(self, addr, room_id):
+    def create_room(self, addr, room_id, username):
         self.active_rooms[room_id] = {
             'room': Room(self.ip, self.port+int(room_id), self.port+int(room_id)+1, room_id),
             'room_info': {
                 'room_leader': addr[0],
                 'players': [addr[0]],
                 'player_objects': {},
-                'player_room': []
+                'player_room': [],
+                'players_udp': [username]
             }
         }
 
@@ -207,8 +236,8 @@ class Server(threading.Thread):
         while True:
             self.active_rooms[room_id]['room'].run()
 
-    def threaded_create_room(self, addr, room_id):
-        room_thread = threading.Thread(target=self.create_room, args=(addr, room_id))
+    def threaded_create_room(self, addr, room_id, username):
+        room_thread = threading.Thread(target=self.create_room, args=(addr, room_id, username))
         room_thread.start()
 
     def threaded_client(self, addr, connection):
@@ -232,7 +261,7 @@ class Server(threading.Thread):
 
                     elif data['type'] == 'create_room':
                         room_id = self.available_rooms.pop()
-                        self.threaded_create_room(addr, room_id)
+                        self.threaded_create_room(addr, room_id, data['username'])
 
                         reply = {
                             'status': 1,
@@ -245,7 +274,7 @@ class Server(threading.Thread):
                         try:
                             self.connected_players[addr[0]]['in_room'] = room_id
                             self.active_rooms[room_id]['room_info']['players'].append(addr[0])
-
+                            self.active_rooms[room_id]['room_info']['players_udp'].append(data['username'])
                             self.active_rooms[room_id]['room'].update_room(self.active_rooms[room_id]['room_info'])
 
                             print("Joined room")
