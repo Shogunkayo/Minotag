@@ -6,10 +6,12 @@ import pygame
 from random import shuffle
 import copy
 import threading
+import queue
 
 class Room(threading.Thread):
     def __init__(self, ip, udp_port, tcp_port, room_id):
         pygame.init()
+        self.clock = pygame.time.Clock()
         threading.Thread.__init__(self)
         self.ip = ip
         self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -37,6 +39,10 @@ class Room(threading.Thread):
             'is_tagged': self.is_tagged
         }
         self.player_variables = copy.deepcopy(self.set_player_variables)
+
+        self.messages = queue.Queue()
+        self.clients = []
+        self.lock = threading.Lock()
 
     def update_room(self, room_info):
         self.room_info = room_info
@@ -77,14 +83,12 @@ class Room(threading.Thread):
                                 reply = {'status': 0}
 
                     elif data['type'] == 'create_player':
-                        player_no = self.room_info['players'].index(addr[0])
+                        player_no = self.room_info['player_room'].index(addr[0] + str(addr[1]))
                         self.room_info['player_objects'][addr[0] + str(addr[1])] = Player(0, self.player_variables['position'][player_no], self.player_variables['is_tagged'][player_no], self.player_sprite_paths.pop())
                         reply = {'status': 1, 'player': self.room_info['player_objects'][addr[0] + str(addr[1])]}
 
                     elif data['type'] == 'get_player':
                         players = []
-                        print("\n\n\n", self.room_info, "\n\n\n")
-                        print("LMAO", addr)
                         for k in self.room_info['player_objects']:
                             if k != addr[0] + str(addr[1]):
                                 players.append(self.room_info['player_objects'][k])
@@ -108,11 +112,66 @@ class Room(threading.Thread):
             except Exception as e:
                 print(e)
 
+    def threaded_udp(self):
+        while True:
+            try:
+                message, addr = self.udp.recvfrom(2048)
+                self.messages.put((message, addr))
+            except socket.timeout:
+                pass
+
+            while not self.messages.empty():
+                message, addr = self.messages.get()
+                data = pickle.loads(message)
+                print(data)
+
+                with self.lock:
+                    if addr not in self.clients:
+                        self.clients.append(addr)
+
+                    if data['type'] == 'get_time':
+                        reply = {
+                            'cooldown': self.cooldown,
+                            'current_time': pygame.time.get_ticks()
+                        }
+
+
+                    elif data['type'] == 'update':
+                        self.last_tag = data['last_tag']
+
+                        player_no = self.clients.index(addr)
+
+                        for k,v in self.player_variables.items():
+                            self.player_variables[k][player_no] = data[k]
+
+                        if player_no == 0:
+                            player_reply = 1
+                        elif player_no == 1:
+                            player_reply = 0
+
+                        reply = {
+                            'position': self.player_variables['position'][player_reply],
+                            'direction': self.player_variables['direction'][player_reply],
+                            'facing_right': self.player_variables['facing_right'][player_reply],
+                            'status': self.player_variables['status'][player_reply],
+                            'is_tagged': self.player_variables['is_tagged'][player_reply]
+                        }
+
+                    for client in self.clients:
+                        try:
+                            if client == addr:
+                                self.udp.sendto(pickle.dumps(reply), client)
+                        except:
+                            self.clients.remove(client)
+
     def run(self):
         while True:
             connection, addr = self.tcp.accept()
             print(addr, "joined room", self.room_id)
+            self.room_info['player_room'].append(addr[0] + str(addr[1]))
             threading.Thread(target=self.threaded_tcp, args=(addr, connection)).start()
+            threading.Thread(target=self.threaded_udp).start()
+
 
 class Server(threading.Thread):
     def __init__(self, ip, port):
@@ -137,7 +196,8 @@ class Server(threading.Thread):
             'room_info': {
                 'room_leader': addr[0],
                 'players': [addr[0]],
-                'player_objects': {}
+                'player_objects': {},
+                'player_room': []
             }
         }
 

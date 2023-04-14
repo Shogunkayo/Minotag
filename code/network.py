@@ -6,7 +6,8 @@ class Network:
     def __init__(self):
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.tcp_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.udp_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.udp_client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.udp_client.bind(('127.0.0.1', 0))
         self.server_ip = '127.0.0.1'
         self.server_port = 6000
         self.player = self.connect_server()
@@ -50,6 +51,21 @@ class Network:
             print("Server timed out")
         except socket.error as e:
             print(e)
+
+    def send_udp(self, data):
+        try:
+            data = pickle.dumps(data)
+            self.udp_client.sendto(data, (self.server_ip, self.udp_port))
+            response, _ = self.udp_client.recvfrom(2048)
+            print(pickle.loads(response))
+            return pickle.loads(response)
+
+        except socket.timeout:
+            print("Server timed out")
+        except socket.error as e:
+            print("Socket error:", e)
+        except Exception as e:
+            print("Error:", e)
 
 if __name__ == "__main__":
     n = Network()

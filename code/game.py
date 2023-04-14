@@ -3,6 +3,7 @@ import sys
 from game_data import screen_width, screen_height
 from network import Network
 from time import sleep
+import threading
 
 class Game:
     def __init__(self):
@@ -32,7 +33,10 @@ class Game:
             self.status = 'in_room'
             self.room_leader = True
             print(req['tcp_port'])
+            print(req['udp_port'])
+            sleep(1)
             self.net.connect_tcp(req['tcp_port'])
+            self.net.udp_port = req['udp_port']
             self.get_maps()
 
     def join_room(self):
@@ -41,6 +45,7 @@ class Game:
         if req['status'] == 1:
             self.status = 'in_room'
             self.net.connect_tcp(req['tcp_port'])
+            self.net.udp_port = req['udp_port']
             self.get_maps()
 
     def get_maps(self):
@@ -82,7 +87,12 @@ class Game:
                 player.import_dust_run_assets()
                 self.current_map.player_2_setup(player)
                 print("Player 2 setup complete")
-                self.status = "starting_round"
+                self.status = "start_thread"
+
+    def start_thread(self):
+        self.current_map.start_thread(self.screen, self.net)
+        print("Started client side thread")
+        self.status = 'starting_round'
 
     def run(self):
         while True:
@@ -128,14 +138,17 @@ class Game:
             elif self.status == 'loaded_player':
                 self.get_player_2()
 
+            elif self.status == 'start_thread':
+                self.start_thread()
+
             elif self.status == 'starting_round':
-                self.current_map.run(self.screen, self.net)
+                self.current_map.run(self.screen)
 
             else:
                 sys.exit()
 
             pygame.display.update()
-            self.clock.tick(120)
+            self.clock.tick(60)
 
 if __name__ == "__main__":
     game = Game()
