@@ -4,17 +4,23 @@ from game_data import tile_size, screen_width
 from tile import StaticTile, Coin, Crate, Palm, Timer
 from util import import_csv_layout, import_cut_graphics
 from decorations import Sky, Clouds
+import threading
+from time import sleep
 
 class Map0:
     def __init__(self):
         self.world_shift_x = 0
         self.player2 = None
+
         self.last_tag = 0
-        self.set_timer = 5
+        self.set_timer = 3
         self.timer = self.set_timer
         self.timer_cooldown = 0
+
         self.game_ended = False
         self.loser = None
+
+        self.thread_started = False
 
     def load_sprites(self):
         # dust
@@ -55,9 +61,10 @@ class Map0:
         self.timer_sprite = pygame.sprite.GroupSingle()
         self.timer_sprite.add(timer_bg)
 
-    def player_1_setup(self, player):
+    def player_1_setup(self, player, username):
         self.player = pygame.sprite.GroupSingle()
         self.player.add(player)
+        self.username = username
 
     def player_2_setup(self, player):
         self.player2 = pygame.sprite.GroupSingle()
@@ -67,7 +74,6 @@ class Map0:
     def manage_timer(self, display_surface):
         if self.current_time - self.timer_cooldown > 1000:
             self.timer_cooldown = self.current_time
-            print(self.timer)
             self.timer -= 1
 
         if self.timer == 0:
@@ -75,21 +81,23 @@ class Map0:
 
     def game_over(self, display_surface, net):
         if not self.loser:
-            loser = net.send({'type': 'ended'})
-            if loser[0]:
-                self.loser = "Player 1"
-            else:
-                self.loser = "Player 2"
+            loser = net.send_tcp({'type': 'ended'})
+            try:
+                if loser[0]:
+                    self.loser = "Player 1"
+                else:
+                    self.loser = "Player 2"
+                print(self.loser, "lost")
 
-            print(self.loser, "lost")
-            self.game_reset(net)
+            except KeyError:
+                pass
 
     def game_reset(self, net):
         self.loser = None
         self.game_ended = False
         self.timer = self.set_timer
 
-        players = net.send({'type': 'reset'})
+        players = net.send_tcp({'type': 'reset'})
         p1 = self.player.sprite
         p2 = self.player2.sprite
 
@@ -204,8 +212,7 @@ class Map0:
                     p2.is_tagged = False
                 self.last_tag = self.current_time
 
-
-    def run(self, display_surface, net):
+    def run(self, display_surface):
         # decoration sprites
         self.sky.draw(display_surface)
         self.clouds.draw(display_surface, 0)
@@ -233,23 +240,31 @@ class Map0:
         self.timer_sprite.update(self.timer)
         self.timer_sprite.draw(display_surface)
 
+    def start_thread(self, display_surface, net):
+        self.udp_thread = threading.Thread(target=self.update, args=(display_surface, net))
+        self.udp_thread.start()
+
+    def update(self, display_surface, net):
         # receive and transmit
-        if self.player2:
-            if not self.game_ended:
-                p1 = self.player.sprite
+        while True:
+            if self.player2:
+                if not self.game_ended:
+                    sleep(0.002)
+                    p1 = self.player.sprite
 
-                get_time = net.send({'type': 'get_time'})
-                self.tag_cooldown = get_time['cooldown']
-                self.current_time = get_time['current_time']
+                    get_time = net.send_udp({'type': 'get_time'})
+                    self.tag_cooldown = get_time['cooldown']
+                    self.current_time = get_time['current_time']
 
-                update = net.send({'type': 'update', 'position': (p1.rect.left, p1.rect.top), 'facing_right': p1.facing_right,
-                                   'direction': p1.direction.x, 'status': p1.status, 'is_tagged': p1.is_tagged, 'last_tag': self.last_tag})
-                self.player2_pos.x, self.player2_pos.y = update['position']
-                self.player2.update(1, display_surface, self.player2_pos, update['status'], update['direction'], update['facing_right'], update['is_tagged'])
-            self.player2.draw(display_surface)
+                    update = net.send_udp({'type': 'update', 'position': (p1.rect.left, p1.rect.top), 'facing_right': p1.facing_right, 'username': self.username,
+                                           'direction': p1.direction.x, 'status': p1.status, 'is_tagged': p1.is_tagged, 'last_tag': self.last_tag})
 
-            self.switch_tags()
-            self.manage_timer(display_surface)
+                    self.player2_pos.x, self.player2_pos.y = update['position']
+                    self.player2.update(1, display_surface, self.player2_pos, update['status'], update['direction'], update['facing_right'], update['is_tagged'])
+                self.player2.draw(display_surface)
 
-        if self.game_ended:
-            self.game_over(display_surface, net)
+                self.switch_tags()
+                self.manage_timer(display_surface)
+
+            if self.game_ended:
+                self.game_over(display_surface, net)

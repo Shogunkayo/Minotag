@@ -62,7 +62,6 @@ class Player(pygame.sprite.Sprite):
         self.on_left = False
 
     def reset(self, pos, is_tagged):
-        print(self.rect.x, self.rect.y)
         self.acceleration = 0
         self.speed = self.min_speed
         self.status = 'idle'
@@ -75,7 +74,6 @@ class Player(pygame.sprite.Sprite):
         self.rect.x = pos[0]
         self.rect.y = pos[1]
         self.is_tagged = is_tagged
-        print(self.rect.x, self.rect.y)
 
     def import_assets(self, path):
         self.animations = {'idle': [], 'fall': [], 'run': [], 'jump': []}
