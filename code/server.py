@@ -7,6 +7,7 @@ from random import shuffle
 import copy
 import threading
 import queue
+from time import time, sleep
 
 class Room(threading.Thread):
     def __init__(self, ip, udp_port, tcp_port, room_id):
@@ -37,13 +38,16 @@ class Room(threading.Thread):
             'direction': [0, 0],
             'facing_right': [True, True],
             'status': ['idle', 'idle'],
-            'is_tagged': self.is_tagged
+            'is_tagged': self.is_tagged,
+            'frame_index': [0, 0]
         }
         self.player_variables = copy.deepcopy(self.set_player_variables)
 
         self.messages = queue.Queue()
         self.clients = []
         self.lock = threading.Lock()
+        self.max_updates = 60
+        self.last_update = time()
 
     def update_room(self, room_info):
         self.room_info = room_info
@@ -163,6 +167,12 @@ class Room(threading.Thread):
                             'current_time': pygame.time.get_ticks()
                         }
 
+                        for client in self.clients:
+                            try:
+                                if client == addr:
+                                    self.udp.sendto(pickle.dumps(reply), client)
+                            except:
+                                self.clients.remove(client)
 
                     elif data['type'] == 'update':
                         self.last_tag = data['last_tag']
@@ -182,15 +192,23 @@ class Room(threading.Thread):
                             'direction': self.player_variables['direction'][player_reply],
                             'facing_right': self.player_variables['facing_right'][player_reply],
                             'status': self.player_variables['status'][player_reply],
-                            'is_tagged': self.player_variables['is_tagged'][player_reply]
+                            'is_tagged': self.player_variables['is_tagged'][player_reply],
+                            'frame_index': self.player_variables['frame_index'][player_reply]
                         }
 
-                    for client in self.clients:
-                        try:
-                            if client == addr:
-                                self.udp.sendto(pickle.dumps(reply), client)
-                        except:
-                            self.clients.remove(client)
+                        for client in self.clients:
+                            try:
+                                if client == addr:
+                                    current_time = time()
+                                    since_last_update = current_time - self.last_update
+
+                                    if since_last_update < 1.0 / self.max_updates:
+                                        sleep((1.0 / self.max_updates) - since_last_update)
+                                    self.last_update = time()
+
+                                    self.udp.sendto(pickle.dumps(reply), client)
+                            except:
+                                self.clients.remove(client)
 
     def run(self):
         while True:

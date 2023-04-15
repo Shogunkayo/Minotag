@@ -129,7 +129,7 @@ class Game:
                 self.status = "start_thread"
 
     def start_thread(self):
-        self.current_map.start_thread(self.screen, self.net)
+        #self.current_map.start_thread(self.screen, self.net)
         print("Started client side thread")
         self.status = 'starting_round'
 
@@ -145,11 +145,13 @@ class Game:
         else:
             print("Waiting for room leader to restart")
             req = self.net.send_tcp({'type': 'is_restart'})
-
-            if req['status']:
-                self.current_map.game_reset(self.net)
-            else:
-                sleep(0.5)
+            try:
+                if req['status']:
+                    self.current_map.game_reset(self.net)
+                else:
+                    sleep(0.5)
+            except TypeError:
+                pass
 
     def run(self):
         while True:
@@ -180,7 +182,7 @@ class Game:
                 self.start_thread()
 
             elif self.status == 'starting_round':
-                self.current_map.run(self.screen)
+                self.current_map.run(self.screen, self.net)
                 if self.current_map.game_ended:
                     self.game_restart()
 

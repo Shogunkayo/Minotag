@@ -4,8 +4,6 @@ from game_data import tile_size, screen_width
 from tile import StaticTile, Coin, Crate, Palm, Timer
 from util import import_csv_layout, import_cut_graphics
 from decorations import Sky, Clouds
-import threading
-from time import sleep
 
 class Map0:
     def __init__(self):
@@ -13,9 +11,14 @@ class Map0:
         self.player2 = None
 
         self.last_tag = 0
-        self.set_timer = 3
+        self.set_timer = 20
         self.timer = self.set_timer
         self.timer_cooldown = 0
+        self.max_updates = 60
+        self.last_update = 0
+        self.max_interpolation_delay = 0.1
+        self.since_last_update = 0
+        self.update = None
 
         self.game_ended = False
         self.loser = None
@@ -212,7 +215,7 @@ class Map0:
                     p2.is_tagged = False
                 self.last_tag = self.current_time
 
-    def run(self, display_surface):
+    def run(self, display_surface, net):
         # decoration sprites
         self.sky.draw(display_surface)
         self.clouds.draw(display_surface, 0)
@@ -235,36 +238,48 @@ class Map0:
             self.vertical_collision()
 
         self.player.draw(display_surface)
+        if self.player2:
+            if not self.game_ended:
+                p1 = self.player.sprite
+
+                get_time = net.send_udp({'type': 'get_time'})
+                self.tag_cooldown = get_time['cooldown']
+                self.current_time = get_time['current_time']
+
+                update = net.send_udp({
+                    'type': 'update',
+                    'position': (p1.rect.left, p1.rect.top),
+                    'facing_right': p1.facing_right,
+                    'username': self.username,
+                    'direction': p1.direction.x,
+                    'status': p1.status,
+                    'is_tagged': p1.is_tagged,
+                    'last_tag': self.last_tag,
+                    'frame_index': p1.frame_index
+                })
+
+                current_time = pygame.time.get_ticks()
+                since_last_update = (current_time - self.last_update) / 1000.0
+
+                if self.since_last_update <= self.max_interpolation_delay:
+                    estimated_position = self.interpolate(update['position'], self.player2_pos, since_last_update)
+                    self.player2_pos.x, self.player2_pos.y = estimated_position
+
+                self.player2.update(1, display_surface, self.player2_pos, update)
+                self.player2.draw(display_surface)
+                self.last_update = pygame.time.get_ticks()
 
         # timer
         self.timer_sprite.update(self.timer)
         self.timer_sprite.draw(display_surface)
 
-    def start_thread(self, display_surface, net):
-        self.udp_thread = threading.Thread(target=self.update, args=(display_surface, net))
-        self.udp_thread.start()
+        self.switch_tags()
+        self.manage_timer(display_surface)
 
-    def update(self, display_surface, net):
-        # receive and transmit
-        while True:
-            if self.player2:
-                if not self.game_ended:
-                    sleep(0.002)
-                    p1 = self.player.sprite
+        if self.game_ended:
+            self.game_over(display_surface, net)
 
-                    get_time = net.send_udp({'type': 'get_time'})
-                    self.tag_cooldown = get_time['cooldown']
-                    self.current_time = get_time['current_time']
-
-                    update = net.send_udp({'type': 'update', 'position': (p1.rect.left, p1.rect.top), 'facing_right': p1.facing_right, 'username': self.username,
-                                           'direction': p1.direction.x, 'status': p1.status, 'is_tagged': p1.is_tagged, 'last_tag': self.last_tag})
-
-                    self.player2_pos.x, self.player2_pos.y = update['position']
-                    self.player2.update(1, display_surface, self.player2_pos, update['status'], update['direction'], update['facing_right'], update['is_tagged'])
-                self.player2.draw(display_surface)
-
-                self.switch_tags()
-                self.manage_timer(display_surface)
-
-            if self.game_ended:
-                self.game_over(display_surface, net)
+    def interpolate(self, start, end, alpha):
+        x = start[0]*(1-alpha) + start[1]*(alpha)
+        y = start[1]*(1-alpha) + start[1]*(alpha)
+        return (x, y)

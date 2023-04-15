@@ -96,12 +96,13 @@ class Player(pygame.sprite.Sprite):
         self.dust_animation_speed = 0.15
         self.dust_sprite = pygame.sprite.GroupSingle()
 
-    def animate(self):
+    def animate(self, id):
         animation = self.animations[self.status]
 
-        self.frame_index += self.animation_speed
-        if self.frame_index >= len(animation):
-            self.frame_index = 0
+        if id == 0:
+            self.frame_index += self.animation_speed
+            if self.frame_index >= len(animation):
+                self.frame_index = 0
 
         image = animation[int(self.frame_index)]
         if self.facing_right:
@@ -224,19 +225,21 @@ class Player(pygame.sprite.Sprite):
         jump_particles_sprite = ParticleEffect(pos, 'jump')
         self.dust_sprite.add(jump_particles_sprite)
 
-    def update(self, id, display_surface, new_pos=(0, 0), status='idle', direction=1, facing_right=True, is_tagged=False):
+    def update(self, id, display_surface, pos=(0,0), update=None):
         if id == 0:
             self.get_input()
         else:
-            self.rect.x = new_pos[0]
-            self.rect.y = new_pos[1]
-            self.facing_right = facing_right
-            self.status = status
-            self.direction.x = direction
-            self.is_tagged = is_tagged
+            if update:
+                self.rect.x = pos[0]
+                self.rect.y = pos[1]
+                self.facing_right = update['facing_right']
+                self.status = update['status']
+                self.direction.x = update['direction']
+                self.is_tagged = update['is_tagged']
+                self.frame_index = update['frame_index']
 
         self.get_status()
-        self.animate()
+        self.animate(id)
         if self.speed > (self.max_speed - self.min_speed)/2 + self.min_speed:
             self.dust_run_animation(display_surface)
 
