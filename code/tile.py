@@ -1,6 +1,14 @@
 import pygame
 from util import import_folder
 
+class Sprite(pygame.sprite.Sprite):
+    def __init__(self, x, y, image):
+        super().__init__()
+        self.image = image
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+
 class Tile(pygame.sprite.Sprite):
     def __init__(self, size, x, y):
         super().__init__()

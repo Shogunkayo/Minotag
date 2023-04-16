@@ -13,3 +13,12 @@ vertical_tile_number = 16
 tile_size = 64
 screen_width = 1920
 screen_height = 1080
+
+button_pos = {
+    'home_default_top': (804, 630),
+    'home_default_bot': (804, 792),
+    'home_input_top': (774, 579),
+    'home_input_mid': (774, 713),
+    'home_input_bot': (804, 847),
+    'home_default_inp': (774, 630)
+}
