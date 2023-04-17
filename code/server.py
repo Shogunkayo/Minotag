@@ -205,7 +205,6 @@ class Room(threading.Thread):
                                     if since_last_update < 1.0 / self.max_updates:
                                         sleep((1.0 / self.max_updates) - since_last_update)
                                     self.last_update = time()
-
                                     self.udp.sendto(pickle.dumps(reply), client)
                             except:
                                 self.clients.remove(client)
@@ -328,7 +327,7 @@ class Server(threading.Thread):
             server_thread.start()
 
 if __name__ == "__main__":
-    ip = "127.0.0.1"
+    ip = "10.30.203.91"
     port = 6000
 
     server = Server(ip, port)

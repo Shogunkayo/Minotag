@@ -3,7 +3,7 @@ import pickle
 
 class Network:
     '''
-    Network object acts as middleware between for the client
+    Network object acts as middleware for the client
 
     Sockets:
         - server: tcp socket to the main server
@@ -15,9 +15,9 @@ class Network:
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.tcp_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.udp_client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.server_ip = '127.0.0.1'
+        self.server_ip = '10.30.203.91'
         self.server_port = 6000
-        self.udp_client.bind(('127.0.0.1', 0))  # binding the client udp socket
+        self.udp_client.bind(('10.30.203.91', 0))  # binding the client udp socket
         self.player = self.connect_server()
 
     def connect_server(self):
