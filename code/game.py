@@ -3,6 +3,9 @@ import sys
 from game_data import screen_width, screen_height
 from network import Network
 from time import sleep
+import signal
+import threading
+from ui import Home, Lobby
 
 class Game:
     '''
@@ -16,58 +19,12 @@ class Game:
         self.clock = pygame.time.Clock()
 
         self.net = Network()
-        self.status = 'open'
-        self.room_leader = False
+        self.status = 'home'
         self.current_map = None
         self.player2 = None
-
-        self.connect_server()
-
-    def connect_server(self):
-        username = input("Enter username: ")
-        req = self.net.send_server({'type': 'login', 'username': username})
-
-        if req['status'] == 1:
-            self.status = 'logged_in'
-            self.username = username
-        else:
-            print("Login failed")
-
-    def display_home(self):
-        c = int(input("1 => Create Room\n2 => Join Room\n3 => Logout\n"))
-
-        if c == 1:
-            self.create_room()
-        elif c == 2:
-            self.join_room()
-        elif c == 3:
-            self.status = 'open'
-
-    def create_room(self):
-        req = self.net.send_server({'type': 'create_room', 'username': self.username})
-        if req['status'] == 1:
-            self.status = 'in_room'
-            self.room_leader = True
-
-            sleep(1)
-
-            self.net.connect_tcp(req['tcp_port'])
-            self.net.udp_port = req['udp_port']
-            self.get_maps()
-
-    def join_room(self):
-        room_id = input("Enter room number: ")
-        req = self.net.send_server({'type': 'join_room', 'room_id': room_id, 'username': self.username})
-
-        if req['status'] == 1:
-            self.status = 'in_room'
-            self.net.connect_tcp(req['tcp_port'])
-            self.net.udp_port = req['udp_port']
-            self.get_maps()
+        self.home = Home(self.screen, 'opened', self.net)
 
     def display_room(self):
-        self.get_current_map()
-
         if self.current_map:
             if self.room_leader:
                 c = int(input("1 => Start Game\n"))
@@ -90,7 +47,6 @@ class Game:
 
     def get_current_map(self):
         if self.room_leader:
-            self.current_map_no = int(input("Select map: "))
             self.current_map_no = 0
             self.net.send_tcp({'type': 'set_current_map', 'map_no': self.current_map_no})
         else:
@@ -129,7 +85,6 @@ class Game:
                 self.status = "start_thread"
 
     def start_thread(self):
-        #self.current_map.start_thread(self.screen, self.net)
         print("Started client side thread")
         self.status = 'starting_round'
 
@@ -153,23 +108,42 @@ class Game:
             except TypeError:
                 pass
 
+    def stop_threads(self, sig, frame):
+        try:
+            self.net.send_tcp({'type': 'kill'}, timeout=1)
+            self.net.send_udp({'type': 'kill'}, timeout=1)
+        except:
+            pass
+
+        self.net.send_server({'type': 'kill'}, timeout=1)
+        sys.exit()
+
     def run(self):
         while True:
             for event in pygame.event.get():
-                if event.type == pygame.QUIT:
+                if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+                    self.stop_threads()
                     pygame.quit()
                     sys.exit()
+                if self.status == 'home':
+                    self.home.handle_input(event)
 
             self.screen.fill('gray')
 
-            if self.status == 'open':
-                self.connect_server()
+            if self.status == 'home':
+                self.home.run()
+                if self.home.status == 'lobby':
+                    self.status = 'lobby'
+                    self.username = self.home.username
+                    self.token = self.home.token
+                    self.room_leader = self.home.room_leader
+                    self.room_id = self.home.room_id
+                    self.net = self.home.net
+                    self.get_maps()
 
-            elif self.status == 'logged_in':
-                self.display_home()
-
-            elif self.status == 'in_room':
-                self.display_room()
+            elif self.status == 'lobby':
+                self.get_current_map()
+                self.lobby.run()
 
             elif self.status == 'loading_game':
                 self.current_map.load_sprites()
@@ -185,9 +159,13 @@ class Game:
                 self.current_map.run(self.screen, self.net)
                 if self.current_map.game_ended:
                     self.game_restart()
+                    if self.current_map.p1_is_leader:
+                        self.room_leader = True
 
             else:
                 sys.exit()
+
+            signal.signal(signal.SIGINT, self.stop_threads)
 
             pygame.display.update()
             self.clock.tick(60)
@@ -195,3 +173,4 @@ class Game:
 if __name__ == "__main__":
     game = Game()
     game.run()
+

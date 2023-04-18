@@ -8,6 +8,7 @@ import copy
 import threading
 import queue
 from time import time, sleep
+import signal
 
 class Room(threading.Thread):
     def __init__(self, ip, udp_port, tcp_port, room_id):
@@ -49,6 +50,8 @@ class Room(threading.Thread):
         self.max_updates = 60
         self.last_update = time()
 
+        self.room_close = False
+
     def update_room(self, room_info):
         self.room_info = room_info
         print(self.room_info)
@@ -56,16 +59,96 @@ class Room(threading.Thread):
     def threaded_tcp(self, addr, connection):
         connection.sendall(pickle.dumps("Connected to room"))
         while True:
-            try:
                 data = connection.recv(2048)
                 if not data:
                     print(addr,"left room", self.room_id)
+                    player_no = self.room_info['player_room'].index(addr[0] + str(addr[1]))
+                    self.room_info['player_room'].pop(player_no)
+                    try:
+                        del self.room_info['player_objects'][addr[0] + str(addr[1])]
+                    except KeyError:
+                        pass
+
+                    player_no = self.room_info['players'].index(addr[0])
+                    self.room_info['players'].pop(player_no)
+                    self.room_info['players_udp'].pop(player_no)
+
+                    if self.room_info['room_leader'] == addr[0]:
+                        if len(self.room_info['player_room']) == 0:
+                            self.room_close = True
+                        else:
+                            self.room_info['room_leader'] = self.room_info['players'][0]
+
+                    print("\n\n\n", self.room_info, "\n\n\n")
                     break
                 else:
                     data = pickle.loads(data)
 
                     if data['type'] == 'get_maps':
                         reply = [Map0()]
+
+                    elif data['type'] == 'ready':
+                        if data['username'] and data['token'] and self.room_info['players'][data['username']]:
+                            if self.room_info['players'][data['username']]['token'] == data['token']:
+                                self.room_info['players'][data['username']]['ready'] = True
+                                reply = {
+                                    'status': 1
+                                }
+                            else:
+                                reply = {
+                                    'status': 0,
+                                    'message': "Unauthorized request"
+                                }
+                        else:
+                            reply = {
+                                'status': 0,
+                                'message': "Invalid request"
+                            }
+
+                    elif data['type'] == 'unready':
+                        if data['username'] and data['token'] and self.room_info['players'][data['username']]:
+                            if self.room_info['players'][data['username']]['token'] == data['token']:
+                                self.room_info['players'][data['username']]['ready'] = False
+                                reply = {
+                                    'status': 1
+                                }
+                            else:
+                                reply = {
+                                    'status': 0,
+                                    'message': "Unauthorized request"
+                                }
+                        else:
+                            reply = {
+                                'status': 0,
+                                'message': "Invalid request"
+                            }
+
+
+                    elif data['type'] == 'get_ready':
+                        if data['username'] and data['token'] and self.room_info['players'][data['username']]:
+                            if self.room_info['players'][data['username']]['token'] == data['token']:
+                                players = []
+                                for i in self.room_info['players']:
+                                    temp = i.copy()
+                                    del temp['token']
+                                    del temp['player_object']
+                                    del temp['ip']
+                                    players.append(temp)
+
+                                reply = {
+                                    'status': 1,
+                                    'players': players
+                                }
+                            else:
+                                reply = {
+                                    'status': 0,
+                                    'message': 'Unauthorized request'
+                                }
+                        else:
+                            reply = {
+                                'status': 0,
+                                'message': "Invalid request"
+                            }
 
                     elif data['type'] == 'set_current_map':
                         self.map = int(data['map_no'])
@@ -88,9 +171,13 @@ class Room(threading.Thread):
                                 reply = {'status': 0}
 
                     elif data['type'] == 'create_player':
-                        player_no = self.room_info['player_room'].index(addr[0] + str(addr[1]))
-                        self.room_info['player_objects'][addr[0] + str(addr[1])] = Player(0, self.player_variables['position'][player_no], self.player_variables['is_tagged'][player_no], self.player_sprite_paths.pop())
-                        reply = {'status': 1, 'player': self.room_info['player_objects'][addr[0] + str(addr[1])]}
+                        if data['username'] and data['token']:
+                            reply = {'status': 1, 'player': self.room_info['player_objects'][addr[0] + str(addr[1])]}
+                        else:
+                            reply = {
+                                'status': 0,
+                                'message': 'Invalid request'
+                            }
 
                     elif data['type'] == 'get_player':
                         players = []
@@ -104,7 +191,10 @@ class Room(threading.Thread):
                             reply = {'status': 0}
 
                     elif data['type'] == 'ended':
-                        reply = self.player_variables['is_tagged']
+                        reply = {
+                            'is_tagged': self.player_variables['is_tagged'],
+                            'leader': True if addr == self.room_info['room_leader'] else False
+                        }
                         self.is_restart = False
 
                     elif data['type'] == 'is_restart':
@@ -133,6 +223,10 @@ class Room(threading.Thread):
                                 'is_tagged': [self.player_variables['is_tagged'][1], self.player_variables['is_tagged'][0]]
                             }
 
+                    elif data['type'] == 'kill':
+                        print("TCP THREAD CLOSED")
+                        reply = {'status': 1}
+
                     else:
                         reply = "Invalid Request"
 
@@ -141,8 +235,8 @@ class Room(threading.Thread):
 
                     connection.sendall(pickle.dumps(reply))
 
-            except Exception as e:
-                print(e)
+                    if data['type'] == 'kill':
+                        return
 
     def threaded_udp(self):
         while True:
@@ -209,14 +303,15 @@ class Room(threading.Thread):
                             except:
                                 self.clients.remove(client)
 
-    def run(self):
-        while True:
-            connection, addr = self.tcp.accept()
-            print(addr, "joined room", self.room_id)
-            self.room_info['player_room'].append(addr[0] + str(addr[1]))
-            threading.Thread(target=self.threaded_tcp, args=(addr, connection)).start()
-            threading.Thread(target=self.threaded_udp).start()
+                    elif data['type'] == 'kill':
+                        print("UDP THREAD CLOSED")
+                        return
 
+    def run(self):
+        connection, addr = self.tcp.accept()
+        print(addr, "joined room", self.room_id)
+        threading.Thread(target=self.threaded_tcp, args=(addr, connection)).start()
+        threading.Thread(target=self.threaded_udp).start()
 
 class Server(threading.Thread):
     def __init__(self, ip, port):
@@ -235,26 +330,38 @@ class Server(threading.Thread):
         self.server.listen()
         print("Server started")
 
-    def create_room(self, addr, room_id, username):
+    def create_room(self, addr, room_id, username, token):
         self.active_rooms[room_id] = {
-            'room': Room(self.ip, self.port+int(room_id), self.port+int(room_id)+1, room_id),
+            'room_object': Room(self.ip, self.port+int(room_id), self.port+int(room_id)+1, room_id),
             'room_info': {
-                'room_leader': addr[0],
-                'players': [addr[0]],
-                'player_objects': {},
-                'player_room': [],
-                'players_udp': [username]
+                'room_leader': username,
+                'players': {
+                    username: {
+                        'ip': addr[0],
+                        'username': username,
+                        'token': token,
+                        'player_object': None,
+                        'player_sprite': None,
+                        'player_no': 0,
+                        'ready': True
+                    }
+                }
             }
         }
 
         self.connected_players[addr[0]]['in_room'] = room_id
-        self.active_rooms[room_id]['room'].update_room(self.active_rooms[room_id]['room_info'])
+        self.active_rooms[room_id]['room_object'].update_room(self.active_rooms[room_id]['room_info'])
 
         while True:
-            self.active_rooms[room_id]['room'].run()
+            self.active_rooms[room_id]['room_object'].run()
+            if self.active_rooms[room_id]['room_object'].room_close:
+                del self.active_rooms[room_id]
+                self.available_rooms.append(room_id)
+                print("ROOM THREAD CLOSED")
+                return
 
-    def threaded_create_room(self, addr, room_id, username):
-        room_thread = threading.Thread(target=self.create_room, args=(addr, room_id, username))
+    def threaded_create_room(self, addr, room_id, username, token):
+        room_thread = threading.Thread(target=self.create_room, args=(addr, room_id, username, token))
         room_thread.start()
 
     def threaded_client(self, addr, connection):
@@ -270,42 +377,110 @@ class Server(threading.Thread):
                     data = pickle.loads(data)
 
                     if data['type'] == 'login':
-                        self.connected_players[addr[0]] = {
-                            'username': data['username']
-                        }
-
-                        reply = {'status': 1}
-
-                    elif data['type'] == 'create_room':
-                        room_id = self.available_rooms.pop()
-                        self.threaded_create_room(addr, room_id, data['username'])
-
-                        reply = {
-                            'status': 1,
-                            'udp_port': self.port + int(room_id),
-                            'tcp_port': self.port + int(room_id) + 1
-                        }
-
-                    elif data['type'] == 'join_room':
-                        room_id = data['room_id']
-                        try:
-                            self.connected_players[addr[0]]['in_room'] = room_id
-                            self.active_rooms[room_id]['room_info']['players'].append(addr[0])
-                            self.active_rooms[room_id]['room_info']['players_udp'].append(data['username'])
-                            self.active_rooms[room_id]['room'].update_room(self.active_rooms[room_id]['room_info'])
-
-                            print("Joined room")
-                            print(self.active_rooms)
-                            print(self.connected_players)
+                        if data['username'] and data['password']:
+                            token = str(1000 + len(self.connected_players))
+                            self.connected_players[addr[0]] = {
+                                'username': data['username'],
+                                'token': token
+                            }
 
                             reply = {
                                 'status': 1,
-                                'udp_port': self.port + int(room_id),
-                                'tcp_port': self.port + int(room_id) + 1
+                                'token': token
+                            }
+                        else:
+                            reply = {
+                                'status': 0,
+                                'message': "Both username and password required"
                             }
 
-                        except KeyError:
-                            reply = {'status': 0}
+                    elif data['type'] == 'signup':
+                        if data['username'] and data['password']:
+                            token = str(1000 + len(self.connected_players))
+                            self.connected_players[addr[0]] = {
+                                'username': data['username'],
+                                'token': token
+                            }
+
+                            reply = {
+                                'status': 1,
+                                'token': token
+                            }
+                        else:
+                            reply = {
+                                'status': 0,
+                                'message': "Both username and password required"
+                            }
+
+                    elif data['type'] == 'create_room':
+                        if data['username'] and data['token']:
+                            if data['username'] == self.connected_players[addr[0]]['username'] and data['token'] == self.connected_players[addr[0]]['token']:
+                                room_id = self.available_rooms.pop()
+                                self.threaded_create_room(addr, room_id, data['username'], data['token'])
+
+                                reply = {
+                                    'status': 1,
+                                    'room_id': room_id,
+                                    'udp_port': self.port + int(room_id),
+                                    'tcp_port': self.port + int(room_id) + 1
+                                }
+                            else:
+                                reply = {
+                                    'status': 0,
+                                    'message': "Unauthorized request"
+                                }
+                        else:
+                            reply = {
+                                'status': 0,
+                                'message': "Invalid request"
+                            }
+
+                    elif data['type'] == 'join_room':
+                        if data['username'] and data['token'] and data['room_id']:
+                            if data['username'] == self.connected_players[addr[0]]['username'] and data['token'] == self.connected_players[addr[0]]['token']:
+                                room_id = data['room_id']
+                                try:
+                                    self.connected_players[addr[0]]['in_room'] = room_id
+                                    self.active_rooms[room_id]['room_info']['player_info'][data['username']] = {
+                                        'ip': addr[0],
+                                        'username': data['username'],
+                                        'token': data['token'],
+                                        'player_object': None,
+                                        'player_sprite': None,
+                                        'player_no': len(self.active_rooms[room_id]['room_info']['players']),
+                                        'ready': False
+                                    }
+                                    self.active_rooms[room_id]['room_object'].update_room(self.active_rooms[room_id]['room_info'])
+
+                                    print("Joined room")
+                                    print(self.active_rooms)
+                                    print(self.connected_players)
+
+                                    reply = {
+                                        'status': 1,
+                                        'udp_port': self.port + int(room_id),
+                                        'tcp_port': self.port + int(room_id) + 1
+                                    }
+
+                                except KeyError:
+                                    reply = {
+                                        'status': 0,
+                                        'message': "Invalid room id"
+                                    }
+                            else:
+                                reply = {
+                                    'status': 0,
+                                    'message': "Unauthorized request"
+                                }
+                        else:
+                            reply = {
+                                'status': 0,
+                                'message': "Invalid request"
+                            }
+
+                    elif data['type'] == 'kill':
+                        print("SERVER THREAD CLOSED")
+                        reply = {'status': 1}
 
                     else:
                         reply = "Invalid"
@@ -315,11 +490,15 @@ class Server(threading.Thread):
 
                 connection.sendall(pickle.dumps(reply))
 
+                if data['type'] == 'kill':
+                    return
+
             except Exception as e:
                 print(e)
 
     def run(self):
         while True:
+            print(threading.enumerate())
             connection, addr = self.server.accept()
             print("Connected to:", addr)
 
@@ -327,7 +506,7 @@ class Server(threading.Thread):
             server_thread.start()
 
 if __name__ == "__main__":
-    ip = "10.30.203.91"
+    ip = "127.0.0.1"
     port = 6000
 
     server = Server(ip, port)

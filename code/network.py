@@ -15,9 +15,9 @@ class Network:
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.tcp_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.udp_client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.server_ip = '10.30.203.91'
+        self.server_ip = '127.0.0.1'
         self.server_port = 6000
-        self.udp_client.bind(('10.30.203.91', 0))  # binding the client udp socket
+        self.udp_client.bind(('127.0.0.1', 0))  # binding the client udp socket
         self.player = self.connect_server()
 
     def connect_server(self):
@@ -49,7 +49,7 @@ class Network:
         except Exception as e:
             print("Error:", e)
 
-    def send_server(self, data):
+    def send_server(self, data, timeout=10):
         '''
         Send data to the main server using the server socket
 
@@ -63,7 +63,7 @@ class Network:
         try:
             data = pickle.dumps(data)
             self.server.send(data)
-            self.server.settimeout(10)
+            self.server.settimeout(timeout)
             response = pickle.loads(self.server.recv(2048))
             return response
 
@@ -74,7 +74,7 @@ class Network:
         except Exception as e:
             print("Error:", e)
 
-    def send_tcp(self, data):
+    def send_tcp(self, data, timeout=20):
         '''
         Send data to the room server using the tcp_client socket
 
@@ -88,7 +88,7 @@ class Network:
         try:
             data = pickle.dumps(data)
             self.tcp_client.send(data)
-            self.tcp_client.settimeout(20)
+            self.tcp_client.settimeout(timeout)
             response = pickle.loads(self.tcp_client.recv(2048))
             return response
 
@@ -99,7 +99,7 @@ class Network:
         except Exception as e:
             print("Error:", e)
 
-    def send_udp(self, data):
+    def send_udp(self, data, timeout=10):
         '''
         Send data to the room server using the udp_client socket
 
@@ -112,6 +112,7 @@ class Network:
 
         try:
             data = pickle.dumps(data)
+            self.udp_client.settimeout(timeout)
             self.udp_client.sendto(data, (self.server_ip, self.udp_port))
             response, _ = self.udp_client.recvfrom(2048)
             return pickle.loads(response)

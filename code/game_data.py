@@ -20,5 +20,9 @@ button_pos = {
     'home_input_top': (774, 579),
     'home_input_mid': (774, 713),
     'home_input_bot': (804, 847),
-    'home_default_inp': (774, 630)
+    'home_default_inp': (774, 630),
+    'lobby_left_arrow': (1431, 568),
+    'lobby_right_arrow': (1793, 568),
+    'lobby_default_top': (1481, 750),
+    'lobby_default_bot': (1481, 861)
 }

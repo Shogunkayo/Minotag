@@ -25,6 +25,8 @@ class Map0:
 
         self.thread_started = False
 
+        self.p1_is_leader = False
+
     def load_sprites(self):
         # dust
         self.dust_sprite = pygame.sprite.GroupSingle()
@@ -84,13 +86,16 @@ class Map0:
 
     def game_over(self, display_surface, net):
         if not self.loser:
-            loser = net.send_tcp({'type': 'ended'})
+            req = net.send_tcp({'type': 'ended'})
             try:
-                if loser[0]:
+                if req['is_tagged'][0]:
                     self.loser = "Player 1"
                 else:
                     self.loser = "Player 2"
                 print(self.loser, "lost")
+
+                if req['leader']:
+                    self.p1_is_leader = True
 
             except KeyError:
                 pass
