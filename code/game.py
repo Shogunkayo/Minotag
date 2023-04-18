@@ -23,6 +23,7 @@ class Game:
         self.current_map = None
         self.player2 = None
         self.home = Home(self.screen, 'opened', self.net)
+        self.lobby = None
 
     def display_room(self):
         if self.current_map:
@@ -138,12 +139,18 @@ class Game:
                     self.token = self.home.token
                     self.room_leader = self.home.room_leader
                     self.room_id = self.home.room_id
-                    self.net = self.home.net
+                    sleep(3)
+                    self.net.connect_tcp(self.home.tcp_port)
+                    self.net.udp_port = self.home.udp_port
                     self.get_maps()
 
             elif self.status == 'lobby':
-                self.get_current_map()
-                self.lobby.run()
+                if not self.lobby:
+                    self.lobby = Lobby(self.screen, self.net, self.room_leader, self.username, self.token, self.room_id)
+                else:
+                    self.lobby.run('lobby')
+                    if self.lobby.status == 'game':
+                        self.status = 'game'
 
             elif self.status == 'loading_game':
                 self.current_map.load_sprites()
@@ -173,4 +180,3 @@ class Game:
 if __name__ == "__main__":
     game = Game()
     game.run()
-

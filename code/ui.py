@@ -3,7 +3,7 @@ import sys
 from tile import Sprite
 from game_data import button_pos
 from string import ascii_letters, digits
-from time import sleep
+from time import sleep, time
 
 class Button:
     def __init__(self, path, pos):
@@ -31,6 +31,17 @@ class Button:
         self.on_click(callback)
 
 class Text:
+    def __init__(self, text, pos, colour=pygame.Color('gray94'), font_style='Arcadepix', font_size=70, maxlen=15):
+        self.text = text
+        self.pos = pos
+        self.colour = colour
+        self.font = pygame.font.SysFont(font_style, font_size)
+
+    def draw(self, display_surface):
+        text_surface = self.font.render(self.text, True, self.colour)
+        display_surface.blit(text_surface, self.pos)
+
+class TextInput:
     def __init__(self, pos, path='text_input.png', active_colour=(51, 50, 61), font_style='Arcadepix', font_size=32, text_offset_x=0, text_offset_y=0,
                  placeholder='', placeholder_colour=pygame.Color('gray'), maxlen=15, password=False, alnum=True):
 
@@ -91,7 +102,7 @@ class Text:
 class Home:
     def __init__(self, display_surface, status, net):
         self.display_surface = display_surface
-        self.home_sprite = pygame.sprite.group()
+        self.home_sprite = pygame.sprite.Group()
         self.load_assets()
         self.status = status
         self.net = net
@@ -107,11 +118,11 @@ class Home:
         self.create = Button('create.png', button_pos['home_default_top'])
         self.join = Button('join.png', button_pos['home_default_bot'])
 
-        self.login_username = Text(button_pos['home_input_top'], placeholder='Username', text_offset_x=18, text_offset_y=25)
-        self.login_password = Text(button_pos['home_input_mid'], placeholder='Password', password=True, text_offset_x=18, text_offset_y=25)
-        self.signup_username = Text(button_pos['home_input_top'], placeholder='Username', text_offset_x=18, text_offset_y=25)
-        self.signup_password = Text(button_pos['home_input_mid'], placeholder='Password', password=True, text_offset_x=18, text_offset_y=25)
-        self.join_id = Text(button_pos['home_default_inp'], placeholder='Room ID', maxlen=6, text_offset_x=18, text_offset_y=25)
+        self.login_username = TextInput(button_pos['home_input_top'], placeholder='Username', text_offset_x=18, text_offset_y=25)
+        self.login_password = TextInput(button_pos['home_input_mid'], placeholder='Password', password=True, text_offset_x=18, text_offset_y=25)
+        self.signup_username = TextInput(button_pos['home_input_top'], placeholder='Username', text_offset_x=18, text_offset_y=25)
+        self.signup_password = TextInput(button_pos['home_input_mid'], placeholder='Password', password=True, text_offset_x=18, text_offset_y=25)
+        self.join_id = TextInput(button_pos['home_default_inp'], placeholder='Room ID', maxlen=6, text_offset_x=18, text_offset_y=25)
 
     def go_login(self):
         self.status = 'login'
@@ -138,13 +149,12 @@ class Home:
                 print("Login failed")
 
     def run_signup(self):
-        self.username = self.login_username.text_input
-        password = self.login_password.text_input
-        self.login_password.text_input = ''
+        self.username = self.signup_username.text_input
+        password = self.signup_password.text_input
 
         if self.username and password:
             req = self.net.send_server({
-                'type': 'login',
+                'type': 'signup',
                 'username': self.username,
                 'password': password
             })
@@ -158,7 +168,7 @@ class Home:
     def create_room(self):
         req = self.net.send_server({
             'type': 'create_room',
-            'username': self.login_username.text_input,
+            'username': self.username,
             'token': self.token
         })
 
@@ -166,8 +176,8 @@ class Home:
             self.status = 'lobby'
             self.room_leader = True
             self.room_id = req['room_id']
-            self.net.connect_tcp(req['tcp_port'])
-            self.net.udp_port = req['udp_port']
+            self.tcp_port = req['tcp_port']
+            self.udp_port = req['udp_port']
 
         else:
             print("Error creating room")
@@ -176,7 +186,7 @@ class Home:
         self.status = 'join_room'
 
     def join_room(self):
-        self.room_id = self.join_id.text_input
+        self.room_id = str(self.join_id.text_input)
 
         if self.room_id:
             req = self.net.send_server({
@@ -188,9 +198,8 @@ class Home:
 
             if req['status']:
                 self.status = 'lobby'
-                sleep(1)
-                self.net.connect_tcp(req['tcp_port'])
-                self.net.udp_port = req['udp_port']
+                self.tcp_port = req['tcp_port']
+                self.udp_port = req['udp_port']
 
     def run(self):
         self.home_sprite.draw(self.display_surface)
@@ -234,48 +243,58 @@ class Home:
             self.join_id.run(event)
 
 class Lobby:
-    def __init__(self, display_surface, net, room_leader, username, token):
+    def __init__(self, display_surface, net, room_leader, username, token, room_id):
         self.display_surface = display_surface
         self.net = net
         self.status = 'lobby'
         self.lobby_sprite = pygame.sprite.Group()
         self.room_leader = room_leader
-        self.load_assets()
+        self.load_assets(room_id)
         self.ready = room_leader
         self.username = username
         self.token = token
         self.ready_all = False
         self.current_map_no = 0
+        self.request_cooldown = 3
+        self.last_request_time = 0
 
-    def load_assets(self):
+    def load_assets(self, room_id):
         bg = pygame.image.load('../assets/ui/menus/lobby.png').convert_alpha()
         bg_sprite = Sprite(0, 0, bg)
         self.lobby_sprite.add(bg_sprite)
 
-        self.left_arrow = Button('left_arrow.png', button_pos['lobby_left_arrow'])
-        self.right_arrow = Button('right_arrow.png', button_pos['lobby_right_arrow'])
-        self.start_active = Button('start.png', button_pos['lobby_default_top'])
-        self.start_inactive = Button('start.png', button_pos['lobby_default_top'])
-        self.ready = Button('ready.png', button_pos['lobby_default_top'])
-        self.exit = Button('exit.png', button_pos['lobby_default_bot'])
-        self.player_sprites = []
+        self.left_arrow_btn = Button('left_arrow.png', button_pos['lobby_left_arrow'])
+        self.right_arrow_btn = Button('right_arrow.png', button_pos['lobby_right_arrow'])
+        self.start_active_btn = Button('start.png', button_pos['lobby_default_top'])
+        self.start_inactive_btn = Button('start_inactive.png', button_pos['lobby_default_top'])
+        self.ready_btn = Button('ready.png', button_pos['lobby_default_top'])
+        self.unready_btn = Button('unready.png', button_pos['lobby_default_top'])
+        self.exit_btn = Button('exit.png', button_pos['lobby_default_bot'])
+
+        self.room_id = Text("#" + room_id, button_pos['lobby_room_id'])
 
     def test(self):
         print("Hehehehaw")
 
     def get_ready(self):
-        req = self.net.send_tcp({
-            'type': 'get_ready',
-            'username': self.username,
-            'token': self.token
-        })
+        current_time = time()
+        if current_time - self.last_request_time > self.request_cooldown:
+            req = self.net.send_tcp({
+                'type': 'get_ready',
+                'username': self.username,
+                'token': self.token
+            })
+            try:
+                if req['status']:
+                    players = req['players']
+                    self.ready_all = True
+                    for player in players:
+                        if not players[player]['ready']:
+                            self.ready_all = False
+            except TypeError:
+                pass
 
-        if req['status']:
-            players = req['players']
-            self.ready_all = True
-            for player in players:
-                if not player['ready']:
-                    self.ready_all = False
+            self.last_request_time = current_time
 
     def run_start(self):
         req = self.net.send_tcp({
@@ -290,50 +309,44 @@ class Lobby:
             self.status = 'game'
 
     def run_ready(self):
-        self.ready = True
-
         req = self.net.send_tcp({
             'type': 'ready',
             'username': self.username,
             'token': self.token
         })
 
-        if not req['status']:
-            self.ready = False
+        if req['status']:
+            self.ready = True
 
     def run_unready(self):
-        self.ready = False
-
         req = self.net.send_tcp({
             'type': 'unready',
             'username': self.username,
             'token': self.token
         })
 
-        if not req['status']:
-            self.ready = True
+        if req['status']:
+            self.ready = False
 
     def run(self, status):
         self.lobby_sprite.draw(self.display_surface)
-        self.left_arrow.run(self.display_surface, self.test)
-        self.right_arrow.run(self.display_surface, self.test)
-        self.exit.run(self.display_surface, self.test)
+        self.left_arrow_btn.run(self.display_surface, self.test)
+        self.right_arrow_btn.run(self.display_surface, self.test)
+        self.exit_btn.run(self.display_surface, self.test)
+        self.room_id.draw(self.display_surface)
 
         self.get_ready()
 
         if self.room_leader:
             if self.ready_all:
-                self.start_active.run(self.display_surface, self.run_start)
+                self.start_active_btn.run(self.display_surface, self.run_start)
             else:
-                self.start_inactive.run(self.display_surface, self.test)
+                self.start_inactive_btn.run(self.display_surface, self.test)
         else:
             if self.ready:
-                self.ready.run(self.display_surface, self.run_unready)
+                self.unready_btn.run(self.display_surface, self.run_unready)
             else:
-                self.ready.run(self.display_surface, self.run_unready)
-
-        for sprite in self.player_sprites:
-            sprite.draw(self.display_surface)
+                self.ready_btn.run(self.display_surface, self.run_ready)
 
 if __name__ == '__main__':
     pygame.init()

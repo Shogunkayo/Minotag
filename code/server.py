@@ -62,23 +62,6 @@ class Room(threading.Thread):
                 data = connection.recv(2048)
                 if not data:
                     print(addr,"left room", self.room_id)
-                    player_no = self.room_info['player_room'].index(addr[0] + str(addr[1]))
-                    self.room_info['player_room'].pop(player_no)
-                    try:
-                        del self.room_info['player_objects'][addr[0] + str(addr[1])]
-                    except KeyError:
-                        pass
-
-                    player_no = self.room_info['players'].index(addr[0])
-                    self.room_info['players'].pop(player_no)
-                    self.room_info['players_udp'].pop(player_no)
-
-                    if self.room_info['room_leader'] == addr[0]:
-                        if len(self.room_info['player_room']) == 0:
-                            self.room_close = True
-                        else:
-                            self.room_info['room_leader'] = self.room_info['players'][0]
-
                     print("\n\n\n", self.room_info, "\n\n\n")
                     break
                 else:
@@ -123,17 +106,18 @@ class Room(threading.Thread):
                                 'message': "Invalid request"
                             }
 
-
                     elif data['type'] == 'get_ready':
                         if data['username'] and data['token'] and self.room_info['players'][data['username']]:
                             if self.room_info['players'][data['username']]['token'] == data['token']:
-                                players = []
+                                players = {}
+                                print(self.room_info['players'])
                                 for i in self.room_info['players']:
-                                    temp = i.copy()
+                                    print(i)
+                                    temp = self.room_info['players'][i].copy()
                                     del temp['token']
                                     del temp['player_object']
                                     del temp['ip']
-                                    players.append(temp)
+                                    players[i] = temp
 
                                 reply = {
                                     'status': 1,
@@ -349,7 +333,7 @@ class Server(threading.Thread):
             }
         }
 
-        self.connected_players[addr[0]]['in_room'] = room_id
+        self.connected_players[username]['in_room'] = room_id
         self.active_rooms[room_id]['room_object'].update_room(self.active_rooms[room_id]['room_info'])
 
         while True:
@@ -368,7 +352,6 @@ class Server(threading.Thread):
         connection.sendall(pickle.dumps("Connected"))
         reply = ""
         while True:
-            try:
                 data = connection.recv(2048)
                 if not data:
                     print("Disconnected:", addr)
@@ -379,9 +362,11 @@ class Server(threading.Thread):
                     if data['type'] == 'login':
                         if data['username'] and data['password']:
                             token = str(1000 + len(self.connected_players))
-                            self.connected_players[addr[0]] = {
+                            self.connected_players[data['username']] = {
                                 'username': data['username'],
-                                'token': token
+                                'token': token,
+                                'ip': addr[0],
+                                'in_room': False
                             }
 
                             reply = {
@@ -397,9 +382,11 @@ class Server(threading.Thread):
                     elif data['type'] == 'signup':
                         if data['username'] and data['password']:
                             token = str(1000 + len(self.connected_players))
-                            self.connected_players[addr[0]] = {
+                            self.connected_players[data['username']] = {
                                 'username': data['username'],
-                                'token': token
+                                'token': token,
+                                'ip': addr[0],
+                                'in_room': False
                             }
 
                             reply = {
@@ -413,8 +400,8 @@ class Server(threading.Thread):
                             }
 
                     elif data['type'] == 'create_room':
-                        if data['username'] and data['token']:
-                            if data['username'] == self.connected_players[addr[0]]['username'] and data['token'] == self.connected_players[addr[0]]['token']:
+                        if data['username'] and data['token'] and self.connected_players[data['username']]:
+                            if self.connected_players[data['username']]['token'] == data['token']:
                                 room_id = self.available_rooms.pop()
                                 self.threaded_create_room(addr, room_id, data['username'], data['token'])
 
@@ -436,12 +423,12 @@ class Server(threading.Thread):
                             }
 
                     elif data['type'] == 'join_room':
-                        if data['username'] and data['token'] and data['room_id']:
-                            if data['username'] == self.connected_players[addr[0]]['username'] and data['token'] == self.connected_players[addr[0]]['token']:
+                        if data['username'] and data['token'] and data['room_id'] and self.connected_players[data['username']]:
+                            if self.connected_players[data['username']]['token'] == data['token']:
                                 room_id = data['room_id']
                                 try:
-                                    self.connected_players[addr[0]]['in_room'] = room_id
-                                    self.active_rooms[room_id]['room_info']['player_info'][data['username']] = {
+                                    self.connected_players[data['username']]['in_room'] = room_id
+                                    self.active_rooms[room_id]['room_info']['players'][data['username']] = {
                                         'ip': addr[0],
                                         'username': data['username'],
                                         'token': data['token'],
@@ -493,8 +480,6 @@ class Server(threading.Thread):
                 if data['type'] == 'kill':
                     return
 
-            except Exception as e:
-                print(e)
 
     def run(self):
         while True:
