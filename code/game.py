@@ -43,22 +43,16 @@ class Game:
             sleep(0.5)
 
     def get_maps(self):
-        maps = self.net.send_tcp({'type': 'get_maps'})
-        self.map_list = maps
-
-    def get_current_map(self):
-        if self.room_leader:
-            self.current_map_no = 0
-            self.net.send_tcp({'type': 'set_current_map', 'map_no': self.current_map_no})
+        req = self.net.send_tcp({
+            'type': 'get_maps',
+            'username': self.username,
+            'token': self.token
+        })
+        if req['status']:
+            self.map_list = req['map_list']
         else:
-            req = self.net.send_tcp({'type': 'get_current_map'})
-
-            if req['status'] == 0:
-                return
-
-            self.current_map_no = req['map']
-
-        self.current_map = self.map_list[self.current_map_no]
+            print("Error retriveing maps")
+            self.status = 'home'
 
     def get_player_1(self):
         req = self.net.send_tcp({'type': 'create_player'})
@@ -146,7 +140,7 @@ class Game:
 
             elif self.status == 'lobby':
                 if not self.lobby:
-                    self.lobby = Lobby(self.screen, self.net, self.room_leader, self.username, self.token, self.room_id)
+                    self.lobby = Lobby(self.screen, self.net, self.room_leader, self.username, self.token, self.room_id, self.map_list)
                 else:
                     self.lobby.run('lobby')
                     if self.lobby.status == 'game':

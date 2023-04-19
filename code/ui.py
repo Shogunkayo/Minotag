@@ -1,7 +1,7 @@
 import pygame
 import sys
 from tile import Sprite
-from game_data import button_pos
+from game_data import button_pos, map_thumbnails
 from string import ascii_letters, digits
 from time import sleep, time
 
@@ -243,20 +243,23 @@ class Home:
             self.join_id.run(event)
 
 class Lobby:
-    def __init__(self, display_surface, net, room_leader, username, token, room_id):
+    def __init__(self, display_surface, net, room_leader, username, token, room_id, map_list):
         self.display_surface = display_surface
         self.net = net
         self.status = 'lobby'
         self.lobby_sprite = pygame.sprite.Group()
         self.room_leader = room_leader
-        self.load_assets(room_id)
         self.ready = room_leader
         self.username = username
         self.token = token
         self.ready_all = False
+        self.map_list = map_list
         self.current_map_no = 0
         self.request_cooldown = 3
         self.last_request_time = 0
+        self.thumbnail_pos = map_thumbnails['pos']
+
+        self.load_assets(room_id)
 
     def load_assets(self, room_id):
         bg = pygame.image.load('../assets/ui/menus/lobby.png').convert_alpha()
@@ -273,6 +276,9 @@ class Lobby:
 
         self.room_id = Text("#" + room_id, button_pos['lobby_room_id'])
 
+        map_thumbnail = pygame.image.load(map_thumbnails['path'][self.current_map_no]).convert_alpha()
+        self.map_sprite = pygame.sprite.GroupSingle(Sprite(self.thumbnail_pos[0], self.thumbnail_pos[1], map_thumbnail))
+
     def test(self):
         print("Hehehehaw")
 
@@ -282,15 +288,23 @@ class Lobby:
             req = self.net.send_tcp({
                 'type': 'get_ready',
                 'username': self.username,
-                'token': self.token
+                'token': self.token,
+                'current_map_no': self.current_map_no
             })
+
             try:
                 if req['status']:
+                    self.current_map_no = req['current_map_no']
+                    if not self.room_leader:
+                        map_thumbnail = pygame.image.load(map_thumbnails['path'][self.current_map_no]).convert_alpha()
+                        self.map_sprite = pygame.sprite.GroupSingle(Sprite(self.thumbnail_pos[0], self.thumbnail_pos[1], map_thumbnail))
+
                     players = req['players']
                     self.ready_all = True
                     for player in players:
                         if not players[player]['ready']:
                             self.ready_all = False
+
             except TypeError:
                 pass
 
@@ -299,7 +313,6 @@ class Lobby:
     def run_start(self):
         req = self.net.send_tcp({
             'type': 'start_game',
-            'is_leader': True,
             'username': self.username,
             'token': self.token,
             'map_no': self.current_map_no
@@ -328,16 +341,28 @@ class Lobby:
         if req['status']:
             self.ready = False
 
+    def map_left(self):
+        self.current_map_no = (self.current_map_no-1) % len(self.map_list)
+        print(self.current_map_no)
+        map_thumbnail = pygame.image.load(map_thumbnails['path'][self.current_map_no]).convert_alpha()
+        self.map_sprite = pygame.sprite.GroupSingle(Sprite(self.thumbnail_pos[0], self.thumbnail_pos[1], map_thumbnail))
+
+    def map_right(self):
+        self.current_map_no = (self.current_map_no+1) % len(self.map_list)
+        print(self.current_map_no)
+        map_thumbnail = pygame.image.load(map_thumbnails['path'][self.current_map_no]).convert_alpha()
+        self.map_sprite = pygame.sprite.GroupSingle(Sprite(self.thumbnail_pos[0], self.thumbnail_pos[1], map_thumbnail))
+
     def run(self, status):
         self.lobby_sprite.draw(self.display_surface)
-        self.left_arrow_btn.run(self.display_surface, self.test)
-        self.right_arrow_btn.run(self.display_surface, self.test)
         self.exit_btn.run(self.display_surface, self.test)
         self.room_id.draw(self.display_surface)
-
+        self.map_sprite.draw(self.display_surface)
         self.get_ready()
 
         if self.room_leader:
+            self.left_arrow_btn.run(self.display_surface, self.map_left)
+            self.right_arrow_btn.run(self.display_surface, self.map_right)
             if self.ready_all:
                 self.start_active_btn.run(self.display_surface, self.run_start)
             else:

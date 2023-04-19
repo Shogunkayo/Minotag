@@ -27,3 +27,11 @@ button_pos = {
     'lobby_default_bot': (1481, 861),
     'lobby_room_id': (802, 187)
 }
+
+map_thumbnails = {
+    'pos': (1508, 529),
+    'path': {
+        0: '../assets/ui/map_thumbnails/map_0.png',
+        1: '../assets/ui/buttons/exit.png'
+    }
+}

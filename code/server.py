@@ -3,7 +3,8 @@ import pickle
 from maps import Map0
 from player import Player
 import pygame
-from random import shuffle
+from random import shuffle, choices
+from string import ascii_lowercase, digits
 import copy
 import threading
 import queue
@@ -33,7 +34,7 @@ class Room(threading.Thread):
         shuffle(self.player_sprite_paths)
         self.is_tagged = [True, False]
         shuffle(self.is_tagged)
-        self.current_player = 0
+        self.current_map_no = 0
         self.set_player_variables = {
             'position': [(450, 450), (650, 450)],
             'direction': [0, 0],
@@ -66,49 +67,31 @@ class Room(threading.Thread):
                     break
                 else:
                     data = pickle.loads(data)
+                    if data['username'] and data['token'] and self.room_info['players'][data['username']]:
+                        if self.room_info['players'][data['username']]['token'] == data['token']:
 
-                    if data['type'] == 'get_maps':
-                        reply = [Map0()]
+                            if data['type'] == 'get_maps':
+                                reply = {
+                                    'status': 1,
+                                    'map_list': [(0, Map0()), (1, Map0())]
+                                }
 
-                    elif data['type'] == 'ready':
-                        if data['username'] and data['token'] and self.room_info['players'][data['username']]:
-                            if self.room_info['players'][data['username']]['token'] == data['token']:
+                            elif data['type'] == 'ready':
                                 self.room_info['players'][data['username']]['ready'] = True
                                 reply = {
                                     'status': 1
                                 }
-                            else:
-                                reply = {
-                                    'status': 0,
-                                    'message': "Unauthorized request"
-                                }
-                        else:
-                            reply = {
-                                'status': 0,
-                                'message': "Invalid request"
-                            }
 
-                    elif data['type'] == 'unready':
-                        if data['username'] and data['token'] and self.room_info['players'][data['username']]:
-                            if self.room_info['players'][data['username']]['token'] == data['token']:
+                            elif data['type'] == 'unready':
                                 self.room_info['players'][data['username']]['ready'] = False
                                 reply = {
                                     'status': 1
                                 }
-                            else:
-                                reply = {
-                                    'status': 0,
-                                    'message': "Unauthorized request"
-                                }
-                        else:
-                            reply = {
-                                'status': 0,
-                                'message': "Invalid request"
-                            }
 
-                    elif data['type'] == 'get_ready':
-                        if data['username'] and data['token'] and self.room_info['players'][data['username']]:
-                            if self.room_info['players'][data['username']]['token'] == data['token']:
+                            elif data['type'] == 'get_ready':
+                                if self.room_info['room_leader'] == data['username']:
+                                    self.current_map_no = data['current_map_no']
+
                                 players = {}
                                 print(self.room_info['players'])
                                 for i in self.room_info['players']:
@@ -121,98 +104,69 @@ class Room(threading.Thread):
 
                                 reply = {
                                     'status': 1,
-                                    'players': players
+                                    'players': players,
+                                    'current_map_no': self.current_map_no
                                 }
+
+                            elif data['type'] == 'create_player':
+                                player_no = self.room_info['player_room'].index(addr[0] + str(addr[1]))
+                                self.room_info['player_objects'][addr[0] + str(addr[1])] = Player(0, self.player_variables['position'][player_no], self.player_variables['is_tagged'][player_no], self.player_sprite_paths.pop())
+                                reply = {'status': 1, 'player': self.room_info['player_objects'][addr[0] + str(addr[1])]}
+                                reply = {'status': 1, 'player': self.room_info['player_objects'][addr[0] + str(addr[1])]}
+
+                            elif data['type'] == 'ended':
+                                reply = {
+                                    'is_tagged': self.player_variables['is_tagged'],
+                                    'leader': True if addr == self.room_info['room_leader'] else False
+                                }
+                                self.is_restart = False
+
+                            elif data['type'] == 'is_restart':
+                                reply = {'status': self.is_restart}
+
+                            elif data['type'] == 'do_restart':
+                                if self.room_info['room_leader'] == addr[0] and data['is_leader']:
+                                    self.is_restart = True
+                                    shuffle(self.set_player_variables['is_tagged'])
+                                    reply = {'status': 1}
+                                else:
+                                    reply = {'status': 0}
+
+                            elif data['type'] == 'reset':
+                                self.player_variables = copy.deepcopy(self.set_player_variables)
+
+                                player_no = self.room_info['player_room'].index(addr[0] + str(addr[1]))
+                                if player_no == 0:
+                                    reply = self.player_variables
+                                elif player_no == 1:
+                                    reply = {
+                                        'position': [self.player_variables['position'][1], self.player_variables['position'][0]],
+                                        'status': [self.player_variables['status'][1], self.player_variables['status'][0]],
+                                        'direction': [self.player_variables['direction'][1], self.player_variables['direction'][0]],
+                                        'facing_right': [self.player_variables['facing_right'][1], self.player_variables['facing_right'][0]],
+                                        'is_tagged': [self.player_variables['is_tagged'][1], self.player_variables['is_tagged'][0]]
+                                    }
+
+                            elif data['type'] == 'kill':
+                                print("TCP THREAD CLOSED")
+                                reply = {'status': 1}
+
                             else:
                                 reply = {
                                     'status': 0,
-                                    'message': 'Unauthorized request'
+                                    'message': "Invalid request"
                                 }
+
                         else:
                             reply = {
                                 'status': 0,
-                                'message': "Invalid request"
+                                'message': "Unauthorized request"
                             }
-
-                    elif data['type'] == 'set_current_map':
-                        self.map = int(data['map_no'])
-                        reply = {'status': 1}
-
-                    elif data['type'] == 'get_current_map':
-                        if self.map is not None:
-                            reply = {'status': 1, 'map': self.map}
-                        else:
-                            reply = {'status': 0}
-
-                    elif data['type'] == 'start_game':
-                        if self.room_info['room_leader'] == addr[0] and data['is_leader']:
-                            self.game_started = True
-                            reply = {'status': 1}
-                        else:
-                            if self.game_started:
-                                reply = {'status': 1}
-                            else:
-                                reply = {'status': 0}
-
-                    elif data['type'] == 'create_player':
-                        if data['username'] and data['token']:
-                            reply = {'status': 1, 'player': self.room_info['player_objects'][addr[0] + str(addr[1])]}
-                        else:
-                            reply = {
-                                'status': 0,
-                                'message': 'Invalid request'
-                            }
-
-                    elif data['type'] == 'get_player':
-                        players = []
-                        for k in self.room_info['player_objects']:
-                            if k != addr[0] + str(addr[1]):
-                                players.append(self.room_info['player_objects'][k])
-
-                        if len(players) != 0:
-                            reply = {'status': 1, 'players': players}
-                        else:
-                            reply = {'status': 0}
-
-                    elif data['type'] == 'ended':
-                        reply = {
-                            'is_tagged': self.player_variables['is_tagged'],
-                            'leader': True if addr == self.room_info['room_leader'] else False
-                        }
-                        self.is_restart = False
-
-                    elif data['type'] == 'is_restart':
-                        reply = {'status': self.is_restart}
-
-                    elif data['type'] == 'do_restart':
-                        if self.room_info['room_leader'] == addr[0] and data['is_leader']:
-                            self.is_restart = True
-                            shuffle(self.set_player_variables['is_tagged'])
-                            reply = {'status': 1}
-                        else:
-                            reply = {'status': 0}
-
-                    elif data['type'] == 'reset':
-                        self.player_variables = copy.deepcopy(self.set_player_variables)
-
-                        player_no = self.room_info['player_room'].index(addr[0] + str(addr[1]))
-                        if player_no == 0:
-                            reply = self.player_variables
-                        elif player_no == 1:
-                            reply = {
-                                'position': [self.player_variables['position'][1], self.player_variables['position'][0]],
-                                'status': [self.player_variables['status'][1], self.player_variables['status'][0]],
-                                'direction': [self.player_variables['direction'][1], self.player_variables['direction'][0]],
-                                'facing_right': [self.player_variables['facing_right'][1], self.player_variables['facing_right'][0]],
-                                'is_tagged': [self.player_variables['is_tagged'][1], self.player_variables['is_tagged'][0]]
-                            }
-
-                    elif data['type'] == 'kill':
-                        print("TCP THREAD CLOSED")
-                        reply = {'status': 1}
-
                     else:
-                        reply = "Invalid Request"
+                        reply = {
+                            'status': 0,
+                            'message': "Malformed request"
+                        }
 
                     print(self.room_id, "IP:", addr, "received:", data)
                     print(self.room_id, "sending:", reply)
@@ -305,7 +259,10 @@ class Server(threading.Thread):
         self.start_server()
 
         self.connected_players = {}
-        self.available_rooms = [str(i) for i in range(1, 11, 2)]
+        self.available_rooms = [{
+            'room_no': str(i),
+            'room_id': ''.join(choices(ascii_lowercase + digits, k=5))
+        } for i in range(1, 11, 2)]
         self.active_rooms = {}
 
     def start_server(self):
@@ -315,17 +272,18 @@ class Server(threading.Thread):
         print("Server started")
 
     def create_room(self, addr, room_id, username, token):
-        self.active_rooms[room_id] = {
-            'room_object': Room(self.ip, self.port+int(room_id), self.port+int(room_id)+1, room_id),
+        self.active_rooms[room_id['room_no']] = {
+            'room_object': Room(self.ip, self.port+int(room_id['room_no']), self.port+int(room_id['room_no'])+1, room_id['room_no']),
+            'room_id': room_id['room_id'],
             'room_info': {
                 'room_leader': username,
+                'current_map': None,
                 'players': {
                     username: {
                         'ip': addr[0],
                         'username': username,
                         'token': token,
                         'player_object': None,
-                        'player_sprite': None,
                         'player_no': 0,
                         'ready': True
                     }
@@ -334,12 +292,12 @@ class Server(threading.Thread):
         }
 
         self.connected_players[username]['in_room'] = room_id
-        self.active_rooms[room_id]['room_object'].update_room(self.active_rooms[room_id]['room_info'])
+        self.active_rooms[room_id['room_no']]['room_object'].update_room(self.active_rooms[room_id['room_no']]['room_info'])
 
         while True:
-            self.active_rooms[room_id]['room_object'].run()
-            if self.active_rooms[room_id]['room_object'].room_close:
-                del self.active_rooms[room_id]
+            self.active_rooms[room_id['room_no']]['room_object'].run()
+            if self.active_rooms[room_id['room_no']]['room_object'].room_close:
+                del self.active_rooms[room_id['room_no']]
                 self.available_rooms.append(room_id)
                 print("ROOM THREAD CLOSED")
                 return
@@ -407,9 +365,9 @@ class Server(threading.Thread):
 
                                 reply = {
                                     'status': 1,
-                                    'room_id': room_id,
-                                    'udp_port': self.port + int(room_id),
-                                    'tcp_port': self.port + int(room_id) + 1
+                                    'room_id': room_id['room_id'],
+                                    'udp_port': self.port + int(room_id['room_no']),
+                                    'tcp_port': self.port + int(room_id['room_no']) + 1
                                 }
                             else:
                                 reply = {
@@ -425,35 +383,39 @@ class Server(threading.Thread):
                     elif data['type'] == 'join_room':
                         if data['username'] and data['token'] and data['room_id'] and self.connected_players[data['username']]:
                             if self.connected_players[data['username']]['token'] == data['token']:
-                                room_id = data['room_id']
-                                try:
-                                    self.connected_players[data['username']]['in_room'] = room_id
-                                    self.active_rooms[room_id]['room_info']['players'][data['username']] = {
-                                        'ip': addr[0],
-                                        'username': data['username'],
-                                        'token': data['token'],
-                                        'player_object': None,
-                                        'player_sprite': None,
-                                        'player_no': len(self.active_rooms[room_id]['room_info']['players']),
-                                        'ready': False
-                                    }
-                                    self.active_rooms[room_id]['room_object'].update_room(self.active_rooms[room_id]['room_info'])
+                                room_no = None
+                                for k,v in self.active_rooms.items():
+                                    if v['room_id'] == data['room_id']:
+                                        room_no = k
 
-                                    print("Joined room")
-                                    print(self.active_rooms)
-                                    print(self.connected_players)
+                                    if room_no:
+                                        self.connected_players[data['username']]['in_room'] = {'room_id': data['room_id'], 'room_no': room_no}
+                                        self.active_rooms[room_no]['room_info']['players'][data['username']] = {
+                                            'ip': addr[0],
+                                            'username': data['username'],
+                                            'token': data['token'],
+                                            'player_object': None,
+                                            'player_sprite': None,
+                                            'player_no': len(self.active_rooms[room_no]['room_info']['players']),
+                                            'ready': False
+                                        }
+                                        self.active_rooms[room_no]['room_object'].update_room(self.active_rooms[room_no]['room_info'])
 
-                                    reply = {
-                                        'status': 1,
-                                        'udp_port': self.port + int(room_id),
-                                        'tcp_port': self.port + int(room_id) + 1
-                                    }
+                                        print("Joined room")
+                                        print(self.active_rooms)
+                                        print(self.connected_players)
 
-                                except KeyError:
-                                    reply = {
-                                        'status': 0,
-                                        'message': "Invalid room id"
-                                    }
+                                        reply = {
+                                            'status': 1,
+                                            'udp_port': self.port + int(room_no),
+                                            'tcp_port': self.port + int(room_no) + 1
+                                        }
+
+                                    else:
+                                        reply = {
+                                            'status': 0,
+                                            'message': "Invalid room id"
+                                        }
                             else:
                                 reply = {
                                     'status': 0,
