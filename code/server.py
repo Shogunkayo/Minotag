@@ -30,8 +30,10 @@ class Room(threading.Thread):
         self.cooldown = 1000
         self.is_restart = False
 
-        self.player_sprite_paths = ['../assets/character/pirate_1/', '../assets/character/pirate_2/']
-        shuffle(self.player_sprite_paths)
+        self.set_player_sprite_paths = ['../assets/character/pirate_1/', '../assets/character/pirate_2/']
+        shuffle(self.set_player_sprite_paths)
+        self.player_sprite_paths = self.set_player_sprite_paths.copy()
+
         self.is_tagged = [True, False]
         shuffle(self.is_tagged)
         self.current_map_no = 0
@@ -70,10 +72,13 @@ class Room(threading.Thread):
                     if data['username'] and data['token'] and self.room_info['players'][data['username']]:
                         if self.room_info['players'][data['username']]['token'] == data['token']:
 
-                            if data['type'] == 'get_maps':
+                            if data['type'] == 'player_init':
+                                sprite_path = self.player_sprite_paths.pop()
+                                self.room_info['players'][data['username']]['player_sprite'] = sprite_path
                                 reply = {
                                     'status': 1,
-                                    'map_list': [(0, Map0()), (1, Map0())]
+                                    'map_list': [(0, Map0()), (1, Map0())],
+                                    'player_sprite': sprite_path
                                 }
 
                             elif data['type'] == 'ready':
@@ -93,9 +98,7 @@ class Room(threading.Thread):
                                     self.current_map_no = data['current_map_no']
 
                                 players = {}
-                                print(self.room_info['players'])
                                 for i in self.room_info['players']:
-                                    print(i)
                                     temp = self.room_info['players'][i].copy()
                                     del temp['token']
                                     del temp['player_object']
@@ -285,7 +288,8 @@ class Server(threading.Thread):
                         'token': token,
                         'player_object': None,
                         'player_no': 0,
-                        'ready': True
+                        'ready': True,
+                        'player_sprite': None
                     }
                 }
             }

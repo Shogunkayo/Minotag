@@ -4,7 +4,6 @@ from game_data import screen_width, screen_height
 from network import Network
 from time import sleep
 import signal
-import threading
 from ui import Home, Lobby
 
 class Game:
@@ -42,16 +41,17 @@ class Game:
         else:
             sleep(0.5)
 
-    def get_maps(self):
+    def player_init(self):
         req = self.net.send_tcp({
-            'type': 'get_maps',
+            'type': 'player_init',
             'username': self.username,
             'token': self.token
         })
         if req['status']:
             self.map_list = req['map_list']
+            self.player_sprite = req['player_sprite']
         else:
-            print("Error retriveing maps")
+            print("Error initializing player")
             self.status = 'home'
 
     def get_player_1(self):
@@ -136,7 +136,7 @@ class Game:
                     sleep(3)
                     self.net.connect_tcp(self.home.tcp_port)
                     self.net.udp_port = self.home.udp_port
-                    self.get_maps()
+                    self.player_init()
 
             elif self.status == 'lobby':
                 if not self.lobby:

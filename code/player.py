@@ -27,9 +27,8 @@ class ParticleEffect(pygame.sprite.Sprite):
         self.rect.x += x_shift
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, id, pos, is_tagged, sprite_path):
+    def __init__(self, pos, is_tagged, sprite_path):
         super().__init__()
-        self.player_id = id
         self.frame_index = 0
         self.animation_speed = 0.20
         self.pos = pos

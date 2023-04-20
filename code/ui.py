@@ -279,6 +279,8 @@ class Lobby:
         map_thumbnail = pygame.image.load(map_thumbnails['path'][self.current_map_no]).convert_alpha()
         self.map_sprite = pygame.sprite.GroupSingle(Sprite(self.thumbnail_pos[0], self.thumbnail_pos[1], map_thumbnail))
 
+        self.player_sprites = []
+
     def test(self):
         print("Hehehehaw")
 
@@ -301,9 +303,35 @@ class Lobby:
 
                     players = req['players']
                     self.ready_all = True
-                    for player in players:
-                        if not players[player]['ready']:
+                    i = 0
+                    self.player_sprites = []
+                    for username, player in players.items():
+                        if i == 0:
+                            x, y = 122, 521
+                        elif i == 1:
+                            x, y = 333, 521
+                        elif i == 2:
+                            x, y = 122, 760
+                        else:
+                            x, y = 333, 760
+
+                        if len(username) < 7:
+                            x_offset = 30/len(username)
+                        else:
+                            x_offset = - 30/len(username)
+
+                        if not player['ready']:
                             self.ready_all = False
+                            self.player_sprites.append({
+                                'username': Text(username, (x + x_offset, y-32), font_size=30),
+                                'sprite': pygame.sprite.GroupSingle(Sprite(x, y, pygame.image.load(player['player_sprite']+'unready.png').convert_alpha()))
+                            })
+                        else:
+                            self.player_sprites.append({
+                                'username': Text(username, (x + x_offset, y-32), font_size=30),
+                                'sprite': pygame.sprite.GroupSingle(Sprite(x, y, pygame.image.load(player['player_sprite']+'ready.png').convert_alpha()))
+                            })
+                        i += 1
 
             except TypeError:
                 pass
@@ -372,6 +400,10 @@ class Lobby:
                 self.unready_btn.run(self.display_surface, self.run_unready)
             else:
                 self.ready_btn.run(self.display_surface, self.run_ready)
+
+        for player_sprite in self.player_sprites:
+            player_sprite['sprite'].draw(self.display_surface)
+            player_sprite['username'].draw(self.display_surface)
 
 if __name__ == '__main__':
     pygame.init()
