@@ -25,7 +25,7 @@ button_pos = {
     'lobby_right_arrow': (1793, 568),
     'lobby_default_top': (1481, 750),
     'lobby_default_bot': (1481, 861),
-    'lobby_room_id': (802, 187)
+    'lobby_room_id': (812, 187)
 }
 
 map_thumbnails = {
