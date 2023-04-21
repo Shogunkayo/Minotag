@@ -47,6 +47,7 @@ class Game:
             'username': self.username,
             'token': self.token
         })
+        print("PLAYER INIT CALLED", )
         if req['status']:
             self.map_list = req['map_list']
             self.player_sprite = req['player_sprite']
@@ -137,14 +138,21 @@ class Game:
                     self.net.connect_tcp(self.home.tcp_port)
                     self.net.udp_port = self.home.udp_port
                     self.player_init()
+                    if self.status == 'lobby':
+                        self.lobby = Lobby(self.screen, self.net, self.room_leader, self.username, self.token, self.room_id, self.map_list)
+                        self.lobby.run('lobby')
 
             elif self.status == 'lobby':
-                if not self.lobby:
-                    self.lobby = Lobby(self.screen, self.net, self.room_leader, self.username, self.token, self.room_id, self.map_list)
-                else:
-                    self.lobby.run('lobby')
-                    if self.lobby.status == 'game':
-                        self.status = 'game'
+                self.lobby.run('lobby')
+                if self.lobby.status == 'game':
+                    self.status = 'game'
+                elif self.lobby.status == 'home':
+                    self.status = 'home'
+                    self.room_id = None
+                    self.room_leader = False
+                    self.home.run('choose_room')
+
+                self.room_leader = self.lobby.room_leader
 
             elif self.status == 'loading_game':
                 self.current_map.load_sprites()

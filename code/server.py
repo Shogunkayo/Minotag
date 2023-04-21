@@ -47,6 +47,8 @@ class Room(threading.Thread):
         }
         self.player_variables = copy.deepcopy(self.set_player_variables)
 
+        self.available_spots = []
+
         self.messages = queue.Queue()
         self.clients = []
         self.lock = threading.Lock()
@@ -57,7 +59,7 @@ class Room(threading.Thread):
 
     def update_room(self, room_info):
         self.room_info = room_info
-        print(self.room_info)
+        print("UPDATED ROOM IN ROOM", self.room_info)
 
     def threaded_tcp(self, addr, connection):
         connection.sendall(pickle.dumps("Connected to room"))
@@ -75,6 +77,8 @@ class Room(threading.Thread):
                             if data['type'] == 'player_init':
                                 sprite_path = self.player_sprite_paths.pop()
                                 self.room_info['players'][data['username']]['player_sprite'] = sprite_path
+                                self.available_spots.append(data['username'])
+
                                 reply = {
                                     'status': 1,
                                     'map_list': [(0, Map0()), (1, Map0())],
@@ -108,7 +112,28 @@ class Room(threading.Thread):
                                 reply = {
                                     'status': 1,
                                     'players': players,
-                                    'current_map_no': self.current_map_no
+                                    'current_map_no': self.current_map_no,
+                                    'room_leader': self.room_info['room_leader']
+                                }
+
+                            elif data['type'] == 'exit_room_lobby':
+                                self.player_sprite_paths.append(self.room_info['players'][data['username']]['player_sprite'])
+                                del self.room_info['players'][data['username']]
+                                self.available_spots.remove(data['username'])
+
+                                if len(self.available_spots) > 0:
+                                    for username in self.room_info['players']:
+                                        self.room_info['players'][username]['player_no'] = self.available_spots.index(username)
+                                    if self.room_info['room_leader'] == data['username']:
+                                        self.room_info['room_leader'] = self.available_spots[0]
+                                        self.room_info['players'][self.available_spots[0]]['ready'] = True
+                                else:
+                                    self.room_close = True
+
+                                print("ROOM ROOM INFO:", self.room_info)
+
+                                reply = {
+                                    'status': 1
                                 }
 
                             elif data['type'] == 'create_player':
@@ -150,10 +175,6 @@ class Room(threading.Thread):
                                         'is_tagged': [self.player_variables['is_tagged'][1], self.player_variables['is_tagged'][0]]
                                     }
 
-                            elif data['type'] == 'kill':
-                                print("TCP THREAD CLOSED")
-                                reply = {'status': 1}
-
                             else:
                                 reply = {
                                     'status': 0,
@@ -171,12 +192,13 @@ class Room(threading.Thread):
                             'message': "Malformed request"
                         }
 
-                    print(self.room_id, "IP:", addr, "received:", data)
-                    print(self.room_id, "sending:", reply)
+                    print("Room", self.room_id, "received from IP:", addr, data)
+                    print("Room", self.room_id, "sending:", reply, "\n\n")
 
                     connection.sendall(pickle.dumps(reply))
 
-                    if data['type'] == 'kill':
+                    if data['type'] == 'exit_room_lobby':
+                        print("TCP THREAD CLOSED")
                         return
 
     def threaded_udp(self):
@@ -244,11 +266,14 @@ class Room(threading.Thread):
                             except:
                                 self.clients.remove(client)
 
-                    elif data['type'] == 'kill':
+                    elif data['type'] == 'exit_room_lobby':
                         print("UDP THREAD CLOSED")
                         return
 
     def run(self):
+        if self.room_close:
+            return
+
         connection, addr = self.tcp.accept()
         print(addr, "joined room", self.room_id)
         threading.Thread(target=self.threaded_tcp, args=(addr, connection)).start()
@@ -299,6 +324,7 @@ class Server(threading.Thread):
         self.active_rooms[room_id['room_no']]['room_object'].update_room(self.active_rooms[room_id['room_no']]['room_info'])
 
         while True:
+            print(self.active_rooms[room_id['room_no']]['room_object'].room_close)
             self.active_rooms[room_id['room_no']]['room_object'].run()
             if self.active_rooms[room_id['room_no']]['room_object'].room_close:
                 del self.active_rooms[room_id['room_no']]
@@ -307,6 +333,9 @@ class Server(threading.Thread):
                 return
 
     def threaded_create_room(self, addr, room_id, username, token):
+        print("Created Room")
+        print(self.active_rooms, "\n\n")
+        print(self.available_rooms, "\n\n")
         room_thread = threading.Thread(target=self.create_room, args=(addr, room_id, username, token))
         room_thread.start()
 
@@ -431,6 +460,28 @@ class Server(threading.Thread):
                                 'message': "Invalid request"
                             }
 
+
+                    elif data['type'] == 'exit_room_lobby':
+                        if data['username'] and data['token'] and self.connected_players[data['username']]:
+                            if self.connected_players[data['username']]['token'] == data['token']:
+                                self.connected_players[data['username']]['in_room'] = False
+                                print("SERVER ROOM INFO:", self.active_rooms)
+
+                                reply = {
+                                    'status': 1,
+                                }
+
+                            else:
+                                reply = {
+                                    'status': 0,
+                                    'message': "Unauthorized request"
+                                }
+                        else:
+                            reply = {
+                                'status': 0,
+                                'message': "Invalid request"
+                            }
+
                     elif data['type'] == 'kill':
                         print("SERVER THREAD CLOSED")
                         reply = {'status': 1}
@@ -438,8 +489,8 @@ class Server(threading.Thread):
                     else:
                         reply = "Invalid"
 
-                    print("Recieved: ", data)
-                    print("Sending: ", reply)
+                    print("Server recieved from:", addr, data)
+                    print("Server sending:", reply, "\n\n")
 
                 connection.sendall(pickle.dumps(reply))
 

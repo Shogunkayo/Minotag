@@ -55,6 +55,7 @@ class Network:
 
         Parameters:
             - data: data to send
+            - timeout: time after which to raise timeout, default 10 s
 
         Returns:
             - response: unserialized response from server
@@ -80,6 +81,7 @@ class Network:
 
         Parameters:
             - data: data to send
+            - timeout: time after which to raise timeout, default 20 s
 
         Returns:
             - response: unserialized response from server
@@ -105,6 +107,7 @@ class Network:
 
         Parameters:
             - data: data to send
+            - timeout: time after which to raise timeout, default 10 s
 
         Returns:
             - response: unserialized response from server
@@ -123,6 +126,14 @@ class Network:
             print("Socket error:", e)
         except Exception as e:
             print("Error:", e)
+
+    def close_tcp(self):
+        '''
+        Close tcp socket connected to room server
+        '''
+
+        self.tcp_client.close()
+        self.tcp_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 if __name__ == "__main__":
     n = Network()

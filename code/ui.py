@@ -4,6 +4,7 @@ from tile import Sprite
 from game_data import button_pos, map_thumbnails
 from string import ascii_letters, digits
 from time import sleep, time
+import socket
 
 class Button:
     def __init__(self, path, pos):
@@ -201,8 +202,12 @@ class Home:
                 self.tcp_port = req['tcp_port']
                 self.udp_port = req['udp_port']
 
-    def run(self):
+    def run(self, jump_to_status=None):
         self.home_sprite.draw(self.display_surface)
+
+        if jump_to_status:
+            self.status = jump_to_status
+            self.room_leader = False
 
         if self.status == 'opened':
             self.login.change_pos(button_pos['home_default_top'])
@@ -287,16 +292,21 @@ class Lobby:
     def get_ready(self):
         current_time = time()
         if current_time - self.last_request_time > self.request_cooldown:
-            req = self.net.send_tcp({
-                'type': 'get_ready',
-                'username': self.username,
-                'token': self.token,
-                'current_map_no': self.current_map_no
-            })
+            try:
+                req = self.net.send_tcp({
+                    'type': 'get_ready',
+                    'username': self.username,
+                    'token': self.token,
+                    'current_map_no': self.current_map_no
+                })
+            except BrokenPipeError:
+                pass
 
             try:
                 if req['status']:
                     self.current_map_no = req['current_map_no']
+                    if self.username == req['room_leader']:
+                        self.room_leader = True
                     if not self.room_leader:
                         map_thumbnail = pygame.image.load(map_thumbnails['path'][self.current_map_no]).convert_alpha()
                         self.map_sprite = pygame.sprite.GroupSingle(Sprite(self.thumbnail_pos[0], self.thumbnail_pos[1], map_thumbnail))
@@ -381,9 +391,39 @@ class Lobby:
         map_thumbnail = pygame.image.load(map_thumbnails['path'][self.current_map_no]).convert_alpha()
         self.map_sprite = pygame.sprite.GroupSingle(Sprite(self.thumbnail_pos[0], self.thumbnail_pos[1], map_thumbnail))
 
-    def run(self, status):
+    def exit_room(self):
+        try:
+            self.net.send_tcp({
+                'type': 'exit_room_lobby',
+                'username': self.username,
+                'token': self.token
+            })
+
+            self.net.send_server({
+                'type': 'exit_room_lobby',
+                'username': self.username,
+                'token': self.token
+            })
+
+            self.net.close_tcp()
+
+            self.net.send_udp({
+                'type': 'exit_room_lobby',
+                'username': self.username,
+                'token': self.token,
+            }, timeout=1)
+
+            self.status = 'home'
+
+        except socket.error as e:
+            print(e)
+
+    def run(self, jump_to_status=None):
+
+        if jump_to_status:
+            self.status = 'lobby'
+
         self.lobby_sprite.draw(self.display_surface)
-        self.exit_btn.run(self.display_surface, self.test)
         self.room_id.draw(self.display_surface)
         self.map_sprite.draw(self.display_surface)
         self.get_ready()
@@ -404,6 +444,8 @@ class Lobby:
         for player_sprite in self.player_sprites:
             player_sprite['sprite'].draw(self.display_surface)
             player_sprite['username'].draw(self.display_surface)
+
+        self.exit_btn.run(self.display_surface, self.exit_room)
 
 if __name__ == '__main__':
     pygame.init()
