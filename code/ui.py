@@ -343,6 +343,9 @@ class Lobby:
                             })
                         i += 1
 
+                    if req['game_started']:
+                        self.status = 'game'
+
             except TypeError:
                 pass
 

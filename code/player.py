@@ -74,14 +74,14 @@ class Player(pygame.sprite.Sprite):
         self.rect.y = pos[1]
         self.is_tagged = is_tagged
 
-    def import_assets(self, path):
+    def import_assets(self):
         self.animations = {'idle': [], 'fall': [], 'run': [], 'jump': []}
 
         for animation in self.animations.keys():
-            full_path = path + animation
+            full_path = self.sprite_path + animation
             self.animations[animation] = import_folder(full_path)
 
-        self.animations['run_stop'] = import_folder(path + 'run')
+        self.animations['run_stop'] = import_folder(self.sprite_path + 'run')
         self.image = self.animations['idle'][self.frame_index]
         self.rect = self.image.get_rect(topleft=self.pos)
         self.direction = pygame.math.Vector2(0, 0)

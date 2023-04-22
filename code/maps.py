@@ -8,7 +8,7 @@ from decorations import Sky, Clouds
 class Map0:
     def __init__(self):
         self.world_shift_x = 0
-        self.player2 = None
+        self.other_players = None
 
         self.last_tag = 0
         self.set_timer = 20
@@ -66,15 +66,19 @@ class Map0:
         self.timer_sprite = pygame.sprite.GroupSingle()
         self.timer_sprite.add(timer_bg)
 
-    def player_1_setup(self, player, username):
+    def player_setup(self, player, username):
         self.player = pygame.sprite.GroupSingle()
         self.player.add(player)
         self.username = username
 
-    def player_2_setup(self, player):
-        self.player2 = pygame.sprite.GroupSingle()
-        self.player2_pos = pygame.math.Vector2(0, 0)
-        self.player2.add(player)
+    def load_others(self, other_players):
+        self.other_players = other_players
+        for k in self.other_players:
+            self.other_players[k]['pos'] = pygame.math.Vector2(0, 0)
+            self.other_players[k]['player_object'].import_assets()
+            self.other_players[k]['player_object'].import_dust_run_assets()
+            self.other_players[k]['sprite'] = pygame.sprite.GroupSingle()
+            self.other_players[k]['sprite'].add(self.other_players[k]['player_object'])
 
     def manage_timer(self, display_surface):
         if self.current_time - self.timer_cooldown > 1000:
@@ -220,7 +224,7 @@ class Map0:
                     p2.is_tagged = False
                 self.last_tag = self.current_time
 
-    def run(self, display_surface, net):
+    def run(self, display_surface, net, token):
         # decoration sprites
         self.sky.draw(display_surface)
         self.clouds.draw(display_surface, 0)
@@ -243,7 +247,7 @@ class Map0:
             self.vertical_collision()
 
         self.player.draw(display_surface)
-        if self.player2:
+        if self.other_players:
             if not self.game_ended:
                 p1 = self.player.sprite
 
@@ -256,6 +260,7 @@ class Map0:
                     'position': (p1.rect.left, p1.rect.top),
                     'facing_right': p1.facing_right,
                     'username': self.username,
+                    'token': token,
                     'direction': p1.direction.x,
                     'status': p1.status,
                     'is_tagged': p1.is_tagged,
@@ -267,18 +272,19 @@ class Map0:
                 since_last_update = (current_time - self.last_update) / 1000.0
 
                 if self.since_last_update <= self.max_interpolation_delay:
-                    estimated_position = self.interpolate(update['position'], self.player2_pos, since_last_update)
-                    self.player2_pos.x, self.player2_pos.y = estimated_position
+                    for username, player in self.other_players:
+                        estimated_position = self.interpolate(update[username]['pos'], player['pos'], since_last_update)
+                        self.other_players[username]['pos'].x, self.other_players[username]['pos'].y = estimated_position
 
-                self.player2.update(1, display_surface, self.player2_pos, update)
-                self.player2.draw(display_surface)
+                for username, player in self.other_players:
+                    player['player_object'].update(1, display_surface, player['pos'], update[username])
+                    player.draw(display_surface)
                 self.last_update = pygame.time.get_ticks()
 
         # timer
         self.timer_sprite.update(self.timer)
         self.timer_sprite.draw(display_surface)
 
-        self.switch_tags()
         self.manage_timer(display_surface)
 
         if self.game_ended:

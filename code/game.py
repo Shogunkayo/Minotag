@@ -23,6 +23,7 @@ class Game:
         self.player2 = None
         self.home = Home(self.screen, 'opened', self.net)
         self.lobby = None
+        self.loaded_sprites = False
 
     def display_room(self):
         if self.current_map:
@@ -55,34 +56,45 @@ class Game:
             print("Error initializing player")
             self.status = 'home'
 
-    def get_player_1(self):
-        req = self.net.send_tcp({'type': 'create_player'})
+    def load_player(self):
+        req = self.net.send_tcp({
+            'type': 'create_player',
+            'username': self.username,
+            'token': self.token
+        })
 
         if req['status']:
-            player = req['player']
-            player.import_assets(player.sprite_path)
+            player = req['player_object']
+            player.import_assets()
             player.import_dust_run_assets()
-            self.current_map.player_1_setup(player, self.username)
-            self.status = "loaded_player"
-        else:
-            print("Error retriveing player")
+            self.current_map.player_setup(player, self.username)
 
-    def get_player_2(self):
-        if not self.player2:
-            req = self.net.send_tcp({'type': 'get_player', 'is_leader': self.room_leader})
+            req = self.net.send_tcp({
+                'type': 'player_loaded',
+                'username': self.username,
+                'token': self.token
+            })
 
             if req['status']:
-                self.player2 = True
-                player = req['players'][0]
-                player.import_assets(player.sprite_path)
-                player.import_dust_run_assets()
-                self.current_map.player_2_setup(player)
-                print("Player 2 setup complete")
-                self.status = "start_thread"
+                self.loaded_sprites = True
 
-    def start_thread(self):
-        print("Started client side thread")
-        self.status = 'starting_round'
+    def check_start(self):
+        req = self.net.send_tcp({
+            'type': 'check_start',
+            'username': self.username,
+            'token': self.token
+        })
+
+        if req['status']:
+            req = self.net.send_tcp({
+                'type': 'load_others',
+                'username': self.username,
+                'token': self.token,
+            })
+
+            if req['status']:
+                self.current_map.load_others(req['other_players'])
+                self.status = 'play'
 
     def game_restart(self):
         if self.room_leader:
@@ -146,6 +158,7 @@ class Game:
                 self.lobby.run('lobby')
                 if self.lobby.status == 'game':
                     self.status = 'game'
+                    self.current_map_no = self.lobby.current_map_no
                 elif self.lobby.status == 'home':
                     self.status = 'home'
                     self.room_id = None
@@ -154,18 +167,19 @@ class Game:
 
                 self.room_leader = self.lobby.room_leader
 
-            elif self.status == 'loading_game':
-                self.current_map.load_sprites()
-                self.get_player_1()
+            elif self.status == 'game':
+                if not self.loaded_sprites:
+                    self.current_map = self.map_list[self.current_map_no][1]
+                    self.current_map.load_sprites()
+                    self.load_player()
+                else:
+                    self.check_start()
 
             elif self.status == 'loaded_player':
                 self.get_player_2()
 
-            elif self.status == 'start_thread':
-                self.start_thread()
-
             elif self.status == 'starting_round':
-                self.current_map.run(self.screen, self.net)
+                self.current_map.run(self.screen, self.net, self.token)
                 if self.current_map.game_ended:
                     self.game_restart()
                     if self.current_map.p1_is_leader:
