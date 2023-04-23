@@ -135,6 +135,14 @@ class Network:
         self.tcp_client.close()
         self.tcp_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
+    def close_udp(self):
+        '''
+        Close udp socket to room server
+        '''
+
+        self.udp_client.close()
+        self.udp_client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
 if __name__ == "__main__":
     n = Network()
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

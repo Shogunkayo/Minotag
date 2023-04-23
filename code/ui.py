@@ -395,7 +395,6 @@ class Lobby:
         self.map_sprite = pygame.sprite.GroupSingle(Sprite(self.thumbnail_pos[0], self.thumbnail_pos[1], map_thumbnail))
 
     def exit_room(self):
-        try:
             self.net.send_tcp({
                 'type': 'exit_room_lobby',
                 'username': self.username,
@@ -416,15 +415,14 @@ class Lobby:
                 'token': self.token,
             }, timeout=1)
 
+            self.net.close_udp()
             self.status = 'home'
-
-        except socket.error as e:
-            print(e)
 
     def run(self, jump_to_status=None):
 
         if jump_to_status:
             self.status = 'lobby'
+            self.ready = False
 
         self.lobby_sprite.draw(self.display_surface)
         self.room_id.draw(self.display_surface)
@@ -449,6 +447,36 @@ class Lobby:
             player_sprite['username'].draw(self.display_surface)
 
         self.exit_btn.run(self.display_surface, self.exit_room)
+
+class Endscreen:
+    def __init__(self, display_surface, loser):
+        self.display_surface = display_surface
+        self.end_sprite = pygame.sprite.Group()
+        self.load_assets(loser)
+        self.status = 'end'
+
+    def load_assets(self, loser):
+        bg = pygame.image.load('../assets/ui/menus/end.png').convert_alpha()
+        bg_sprite = Sprite(0, 0, bg)
+        self.end_sprite.add(bg_sprite)
+
+        if len(loser['username']) < 6:
+            x_offset = 30/len(loser['username'])
+        else:
+            x_offset = - 30/len(loser['username'])
+        self.loser_txt = Text(loser['username'], (button_pos['end_default_txt'][0] + x_offset, button_pos['end_default_txt'][1]), font_size=30)
+        self.loser_sprite = pygame.sprite.GroupSingle(Sprite(button_pos['end_default_sprite'][0], button_pos['end_default_sprite'][1], pygame.image.load(loser['player_sprite']+'unready.png').convert_alpha()))
+
+        self.lobby_btn = Button('lobby.png', button_pos['end_default_btn'])
+
+    def go_lobby(self):
+        self.status = 'lobby'
+
+    def run(self):
+        self.end_sprite.draw(self.display_surface)
+        self.loser_txt.draw(self.display_surface)
+        self.loser_sprite.draw(self.display_surface)
+        self.lobby_btn.run(self.display_surface, self.go_lobby)
 
 if __name__ == '__main__':
     pygame.init()

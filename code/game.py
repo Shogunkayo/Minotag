@@ -4,7 +4,7 @@ from game_data import screen_width, screen_height
 from network import Network
 from time import sleep
 import signal
-from ui import Home, Lobby
+from ui import Home, Lobby, Endscreen
 
 class Game:
     '''
@@ -96,27 +96,17 @@ class Game:
                 self.current_map.load_others(req['other_players'])
                 self.status = 'play'
 
-    def game_restart(self):
-        if self.room_leader:
-            c = int(input("1 => Restart\n"))
+    def game_ended(self):
+        req = self.net.send_tcp({
+            'type': 'game_ended',
+            'username': self.username,
+            'token': self.token
+        })
 
-            if c == 1:
-                req = self.net.send_tcp({'type': 'do_restart', 'is_leader': self.room_leader})
+        if req['status']:
+            self.loser = req
 
-                if req['status']:
-                    self.current_map.game_reset(self.net)
-        else:
-            print("Waiting for room leader to restart")
-            req = self.net.send_tcp({'type': 'is_restart'})
-            try:
-                if req['status']:
-                    self.current_map.game_reset(self.net)
-                else:
-                    sleep(0.5)
-            except TypeError:
-                pass
-
-    def stop_threads(self, sig, frame):
+    def stop_threads(self):
         try:
             self.net.send_tcp({'type': 'kill'}, timeout=1)
             self.net.send_udp({'type': 'kill'}, timeout=1)
@@ -155,7 +145,7 @@ class Game:
                         self.lobby.run('lobby')
 
             elif self.status == 'lobby':
-                self.lobby.run('lobby')
+                self.lobby.run()
                 if self.lobby.status == 'game':
                     self.status = 'game'
                     self.current_map_no = self.lobby.current_map_no
@@ -175,15 +165,20 @@ class Game:
                 else:
                     self.check_start()
 
-            elif self.status == 'loaded_player':
-                self.get_player_2()
-
-            elif self.status == 'starting_round':
+            elif self.status == 'play':
                 self.current_map.run(self.screen, self.net, self.token)
                 if self.current_map.game_ended:
-                    self.game_restart()
-                    if self.current_map.p1_is_leader:
-                        self.room_leader = True
+                    self.status = 'end'
+                    self.game_ended()
+                    self.endscreen = Endscreen(self.screen, self.loser)
+
+            elif self.status == 'end':
+                self.endscreen.run()
+                self.current_map.game_ended = False
+                self.loaded_sprites = False
+                if self.endscreen.status == 'lobby':
+                    self.status = 'lobby'
+                    self.lobby.run('lobby')
 
             else:
                 sys.exit()

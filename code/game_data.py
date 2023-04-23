@@ -25,7 +25,10 @@ button_pos = {
     'lobby_right_arrow': (1793, 568),
     'lobby_default_top': (1481, 750),
     'lobby_default_bot': (1481, 861),
-    'lobby_room_id': (812, 187)
+    'lobby_room_id': (812, 187),
+    'end_default_btn': (1321, 812),
+    'end_default_txt': (1402, 542),
+    'end_default_sprite': (1410, 568),
 }
 
 map_thumbnails = {

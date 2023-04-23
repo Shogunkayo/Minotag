@@ -28,6 +28,9 @@ class Room(threading.Thread):
         self.map = None
         self.last_tag = 0
         self.cooldown = 1000
+        self.set_timer = 10
+        self.timer = self.set_timer
+        self.timer_cooldown = 0
         self.is_restart = False
 
         self.set_player_sprite_paths = ['../assets/character/pirate_1/', '../assets/character/pirate_2/']
@@ -46,6 +49,7 @@ class Room(threading.Thread):
             'frame_index': [0, 0]
         }
         self.player_variables = copy.deepcopy(self.set_player_variables)
+        self.variables_reset = False
 
         self.available_spots = []
 
@@ -153,6 +157,11 @@ class Room(threading.Thread):
 
                                     if all_ready:
                                         self.game_started = True
+                                        self.timer = self.set_timer
+                                        if self.variables_reset:
+                                            self.player_variables = copy.deepcopy(self.set_player_variables)
+                                            self.variables_reset = False
+
                                         reply = {
                                             'status': 1,
                                         }
@@ -214,38 +223,23 @@ class Room(threading.Thread):
                                     'other_players': other_players
                                 }
 
-                            elif data['type'] == 'ended':
-                                reply = {
-                                    'is_tagged': self.player_variables['is_tagged'],
-                                    'leader': True if addr == self.room_info['room_leader'] else False
-                                }
-                                self.is_restart = False
-
-                            elif data['type'] == 'is_restart':
-                                reply = {'status': self.is_restart}
-
-                            elif data['type'] == 'do_restart':
-                                if self.room_info['room_leader'] == addr[0] and data['is_leader']:
-                                    self.is_restart = True
+                            elif data['type'] == 'game_ended':
+                                if self.room_info['room_leader'] == data['username']:
+                                    for username, player in self.room_info['players'].items():
+                                        if username != self.room_info['room_leader']:
+                                            player['ready'] = False
+                                        player['player_loaded'] = False
                                     shuffle(self.set_player_variables['is_tagged'])
-                                    reply = {'status': 1}
-                                else:
-                                    reply = {'status': 0}
+                                    self.variables_reset = True
 
-                            elif data['type'] == 'reset':
-                                self.player_variables = copy.deepcopy(self.set_player_variables)
-
-                                player_no = self.room_info['player_room'].index(addr[0] + str(addr[1]))
-                                if player_no == 0:
-                                    reply = self.player_variables
-                                elif player_no == 1:
-                                    reply = {
-                                        'position': [self.player_variables['position'][1], self.player_variables['position'][0]],
-                                        'status': [self.player_variables['status'][1], self.player_variables['status'][0]],
-                                        'direction': [self.player_variables['direction'][1], self.player_variables['direction'][0]],
-                                        'facing_right': [self.player_variables['facing_right'][1], self.player_variables['facing_right'][0]],
-                                        'is_tagged': [self.player_variables['is_tagged'][1], self.player_variables['is_tagged'][0]]
-                                    }
+                                for username, player in self.room_info['players'].items():
+                                    if self.player_variables['is_tagged'][player['player_no']]:
+                                        reply = {
+                                            'status': 1,
+                                            'username': username,
+                                            'player_sprite': player['player_sprite']
+                                        }
+                                        break
 
                             else:
                                 reply = {
@@ -291,10 +285,20 @@ class Room(threading.Thread):
                         self.clients.append(addr)
 
                     if data['type'] == 'get_time':
+                        current_time = pygame.time.get_ticks()
+                        if current_time - self.timer_cooldown > 1000:
+                            self.timer_cooldown = current_time
+                            self.timer -= 1
+
                         reply = {
                             'cooldown': self.cooldown,
-                            'current_time': pygame.time.get_ticks()
+                            'current_time': current_time,
+                            'timer': self.timer
                         }
+
+                        if self.timer <= 0:
+                            self.game_ended = True
+                            self.game_started = False
 
                         for client in self.clients:
                             try:
@@ -304,26 +308,36 @@ class Room(threading.Thread):
                                 self.clients.remove(client)
 
                     elif data['type'] == 'update':
-                        self.last_tag = data['last_tag']
+                        if data['username'] and data['token']:
+                            if self.room_info['players'][data['username']]['token'] == data['token']:
+                                self.last_tag = data['last_tag']
 
-                        player_no = self.room_info['players_udp'].index(data['username'])
+                                player_no = self.room_info['players'][data['username']]['player_no']
+                                for k,v in self.player_variables.items():
+                                    self.player_variables[k][player_no] = data[k]
 
-                        for k,v in self.player_variables.items():
-                            self.player_variables[k][player_no] = data[k]
+                                reply = {}
+                                for username, player in self.room_info['players'].items():
+                                    if username != data['username']:
+                                        reply[username] = {
+                                            'pos': self.player_variables['pos'][player['player_no']],
+                                            'direction': self.player_variables['direction'][player['player_no']],
+                                            'facing_right': self.player_variables['facing_right'][player['player_no']],
+                                            'status': self.player_variables['status'][player['player_no']],
+                                            'is_tagged': self.player_variables['is_tagged'][player['player_no']],
+                                            'frame_index': self.player_variables['frame_index'][player['player_no']]
+                                        }
+                            else:
+                                reply = {
+                                    'status': 0,
+                                    'message': "Unauthorized request",
+                                }
+                        else:
+                            reply = {
+                                'status': 0,
+                                'message': "Invalid request"
+                            }
 
-                        if player_no == 0:
-                            player_reply = 1
-                        elif player_no == 1:
-                            player_reply = 0
-
-                        reply = {
-                            'position': self.player_variables['position'][player_reply],
-                            'direction': self.player_variables['direction'][player_reply],
-                            'facing_right': self.player_variables['facing_right'][player_reply],
-                            'status': self.player_variables['status'][player_reply],
-                            'is_tagged': self.player_variables['is_tagged'][player_reply],
-                            'frame_index': self.player_variables['frame_index'][player_reply]
-                        }
 
                         for client in self.clients:
                             try:
@@ -345,7 +359,6 @@ class Room(threading.Thread):
     def run(self):
         if self.room_close:
             return
-
         connection, addr = self.tcp.accept()
         print(addr, "joined room", self.room_id)
         threading.Thread(target=self.threaded_tcp, args=(addr, connection)).start()
@@ -539,7 +552,8 @@ class Server(threading.Thread):
                         if data['username'] and data['token'] and self.connected_players[data['username']]:
                             if self.connected_players[data['username']]['token'] == data['token']:
                                 self.connected_players[data['username']]['in_room'] = False
-                                print("SERVER ROOM INFO:", self.active_rooms)
+                                print("ACTIVE ROOMS ROOM INFO:", self.active_rooms)
+                                print("CONNECTED PLAYERS INFO:", self.connected_players)
 
                                 reply = {
                                     'status': 1,

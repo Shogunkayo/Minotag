@@ -11,9 +11,7 @@ class Map0:
         self.other_players = None
 
         self.last_tag = 0
-        self.set_timer = 20
-        self.timer = self.set_timer
-        self.timer_cooldown = 0
+        self.timer = 10
         self.max_updates = 60
         self.last_update = 0
         self.max_interpolation_delay = 0.1
@@ -81,40 +79,8 @@ class Map0:
             self.other_players[k]['sprite'].add(self.other_players[k]['player_object'])
 
     def manage_timer(self, display_surface):
-        if self.current_time - self.timer_cooldown > 1000:
-            self.timer_cooldown = self.current_time
-            self.timer -= 1
-
         if self.timer == 0:
             self.game_ended = True
-
-    def game_over(self, display_surface, net):
-        if not self.loser:
-            req = net.send_tcp({'type': 'ended'})
-            try:
-                if req['is_tagged'][0]:
-                    self.loser = "Player 1"
-                else:
-                    self.loser = "Player 2"
-                print(self.loser, "lost")
-
-                if req['leader']:
-                    self.p1_is_leader = True
-
-            except KeyError:
-                pass
-
-    def game_reset(self, net):
-        self.loser = None
-        self.game_ended = False
-        self.timer = self.set_timer
-
-        players = net.send_tcp({'type': 'reset'})
-        p1 = self.player.sprite
-        p2 = self.player2.sprite
-
-        p1.reset(players['position'][0], players['is_tagged'][0])
-        p2.reset(players['position'][1], players['is_tagged'][1])
 
     def create_tile_group(self, layout, type):
         sprite_group = pygame.sprite.Group()
@@ -213,16 +179,16 @@ class Map0:
 
     def switch_tags(self):
         p1 = self.player.sprite
-        p2 = self.player2.sprite
-        if self.player.sprite.rect.colliderect(self.player2.sprite.rect):
-            if self.current_time - self.last_tag >= self.tag_cooldown:
-                if p1.is_tagged:
-                    p1.is_tagged = False
-                    p2.is_tagged = True
-                else:
-                    p1.is_tagged = True
-                    p2.is_tagged = False
-                self.last_tag = self.current_time
+        for username, player in self.other_players.items():
+            if self.player.sprite.rect.colliderect(player['sprite'].sprite.rect):
+                if self.current_time - self.last_tag >= self.tag_cooldown:
+                    if p1.is_tagged:
+                        p1.is_tagged = False
+                        player['player_object'].is_tagged = True
+                    else:
+                        p1.is_tagged = True
+                        player['player_object'].is_tagged = False
+                    self.last_tag = self.current_time
 
     def run(self, display_surface, net, token):
         # decoration sprites
@@ -247,17 +213,18 @@ class Map0:
             self.vertical_collision()
 
         self.player.draw(display_surface)
+        get_time = net.send_udp({'type': 'get_time'})
+        self.tag_cooldown = get_time['cooldown']
+        self.current_time = get_time['current_time']
+        self.timer = get_time['timer']
+
         if self.other_players:
             if not self.game_ended:
                 p1 = self.player.sprite
 
-                get_time = net.send_udp({'type': 'get_time'})
-                self.tag_cooldown = get_time['cooldown']
-                self.current_time = get_time['current_time']
-
                 update = net.send_udp({
                     'type': 'update',
-                    'position': (p1.rect.left, p1.rect.top),
+                    'pos': (p1.rect.left, p1.rect.top),
                     'facing_right': p1.facing_right,
                     'username': self.username,
                     'token': token,
@@ -272,23 +239,23 @@ class Map0:
                 since_last_update = (current_time - self.last_update) / 1000.0
 
                 if self.since_last_update <= self.max_interpolation_delay:
-                    for username, player in self.other_players:
+                    print(self.other_players)
+                    print(update)
+                    for username, player in self.other_players.items():
                         estimated_position = self.interpolate(update[username]['pos'], player['pos'], since_last_update)
                         self.other_players[username]['pos'].x, self.other_players[username]['pos'].y = estimated_position
 
-                for username, player in self.other_players:
-                    player['player_object'].update(1, display_surface, player['pos'], update[username])
-                    player.draw(display_surface)
+                for username, player in self.other_players.items():
+                    print(1, display_surface, player['pos'], update[username])
+                    player['player_object'].update(id=1, display_surface=display_surface, pos=player['pos'], update=update[username])
+                    player['sprite'].draw(display_surface)
                 self.last_update = pygame.time.get_ticks()
 
         # timer
         self.timer_sprite.update(self.timer)
         self.timer_sprite.draw(display_surface)
-
+        self.switch_tags()
         self.manage_timer(display_surface)
-
-        if self.game_ended:
-            self.game_over(display_surface, net)
 
     def interpolate(self, start, end, alpha):
         x = start[0]*(1-alpha) + start[1]*(alpha)
