@@ -1,12 +1,12 @@
 import pygame
 import game_data
-from game_data import tile_size, screen_width
+from game_data import tile_size, screen_width, maps
 from tile import StaticTile, Coin, Crate, Palm, Timer
 from util import import_csv_layout, import_cut_graphics
 from decorations import Sky, Clouds
 
-class Map0:
-    def __init__(self):
+class BaseMap:
+    def __init__(self, map):
         self.world_shift_x = 0
         self.other_players = None
 
@@ -25,33 +25,35 @@ class Map0:
 
         self.p1_is_leader = False
 
+        self.map = map
+
     def load_sprites(self):
         # dust
         self.dust_sprite = pygame.sprite.GroupSingle()
         self.player_on_ground = False
 
         # terrain
-        terrain_layout = import_csv_layout(game_data.map0['terrain'])
+        terrain_layout = import_csv_layout(maps[self.map]['terrain'])
         self.terrain_sprites = self.create_tile_group(terrain_layout, 'terrain')
 
         # grass
-        grass_layout = import_csv_layout(game_data.map0['grass'])
+        grass_layout = import_csv_layout(maps[self.map]['grass'])
         self.grass_sprites = self.create_tile_group(grass_layout, 'grass')
 
         # crates
-        crate_layout = import_csv_layout(game_data.map0['crate'])
+        crate_layout = import_csv_layout(maps[self.map]['crate'])
         self.crate_sprites = self.create_tile_group(crate_layout, 'crate')
 
         # power
-        power_layout = import_csv_layout(game_data.map0['power'])
+        power_layout = import_csv_layout(maps[self.map]['power'])
         self.power_sprites = self.create_tile_group(power_layout, 'power')
 
         # palm fg
-        palm_fg_layout = import_csv_layout(game_data.map0['palm_fg'])
+        palm_fg_layout = import_csv_layout(maps[self.map]['palm_fg'])
         self.palm_fg_sprites = self.create_tile_group(palm_fg_layout, 'palm_fg')
 
         # palm bg
-        palm_bg_layout = import_csv_layout(game_data.map0['palm_bg'])
+        palm_bg_layout = import_csv_layout(maps[self.map]['palm_bg'])
         self.palm_bg_sprites = self.create_tile_group(palm_bg_layout, 'palm_bg')
 
         # decoration
@@ -196,11 +198,11 @@ class Map0:
         self.clouds.draw(display_surface, 0)
 
         # terrain sprites
-        self.terrain_sprites.draw(display_surface)
         self.palm_bg_sprites.update(0, 0)
         self.palm_fg_sprites.update(0, 0)
         self.palm_bg_sprites.draw(display_surface)
         self.palm_fg_sprites.draw(display_surface)
+        self.terrain_sprites.draw(display_surface)
         self.grass_sprites.draw(display_surface)
         self.crate_sprites.draw(display_surface)
         self.power_sprites.update(0, 0)

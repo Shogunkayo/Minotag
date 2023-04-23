@@ -1,11 +1,22 @@
-map0 = {
-    'terrain': '../map/map0/map0_terrain.csv',
-    'power': '../map/map0/map0_power.csv',
-    'palm_fg': '../map/map0/map0_palm_fg.csv',
-    'palm_bg': '../map/map0/map0_palm_bg.csv',
-    'crate': '../map/map0/map0_crates.csv',
-    'spawn': '../map/map0/map0_spawn.csv',
-    'grass': '../map/map0/map0_grass.csv'
+maps = {
+    'map0': {
+        'terrain': '../map/map0/map0_terrain.csv',
+        'power': '../map/map0/map0_power.csv',
+        'palm_fg': '../map/map0/map0_palm_fg.csv',
+        'palm_bg': '../map/map0/map0_palm_bg.csv',
+        'crate': '../map/map0/map0_crates.csv',
+        'spawn': '../map/map0/map0_spawn.csv',
+        'grass': '../map/map0/map0_grass.csv'
+    },
+
+    'map1': {
+        'terrain': '../map/map1/map1_terrain.csv',
+        'power': '../map/map1/map1_power.csv',
+        'palm_fg': '../map/map1/map1_palm_fg.csv',
+        'palm_bg': '../map/map1/map1_palm_bg.csv',
+        'crate': '../map/map1/map1_crates.csv',
+        'grass': '../map/map1/map1_grass.csv'
+    }
 }
 
 horizontal_tile_number = 30
@@ -35,6 +46,6 @@ map_thumbnails = {
     'pos': (1508, 529),
     'path': {
         0: '../assets/ui/map_thumbnails/map_0.png',
-        1: '../assets/ui/buttons/exit.png'
+        1: '../assets/ui/map_thumbnails/map_1.png'
     }
 }

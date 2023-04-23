@@ -1,6 +1,6 @@
 import socket
 import pickle
-from maps import Map0
+from maps import BaseMap
 from player import Player
 import pygame
 from random import shuffle, choices
@@ -28,25 +28,25 @@ class Room(threading.Thread):
         self.map = None
         self.last_tag = 0
         self.cooldown = 1000
-        self.set_timer = 10
+        self.set_timer = 30
         self.timer = self.set_timer
         self.timer_cooldown = 0
         self.is_restart = False
 
-        self.set_player_sprite_paths = ['../assets/character/pirate_1/', '../assets/character/pirate_2/']
+        self.set_player_sprite_paths = ['../assets/character/pirate_1/', '../assets/character/pirate_2/', '../assets/character/pirate_3/']
         shuffle(self.set_player_sprite_paths)
         self.player_sprite_paths = self.set_player_sprite_paths.copy()
 
-        self.is_tagged = [True, False]
+        self.is_tagged = [True, False, False]
         shuffle(self.is_tagged)
         self.current_map_no = 0
         self.set_player_variables = {
-            'pos': [(450, 450), (650, 450)],
-            'direction': [0, 0],
-            'facing_right': [True, True],
-            'status': ['idle', 'idle'],
+            'pos': [(450, 450), (650, 450), (550, 450)],
+            'direction': [0, 0, 0],
+            'facing_right': [True, True, True],
+            'status': ['idle', 'idle', 'idle'],
             'is_tagged': self.is_tagged,
-            'frame_index': [0, 0]
+            'frame_index': [0, 0, 0]
         }
         self.player_variables = copy.deepcopy(self.set_player_variables)
         self.variables_reset = False
@@ -85,7 +85,7 @@ class Room(threading.Thread):
 
                                 reply = {
                                     'status': 1,
-                                    'map_list': [(0, Map0()), (1, Map0())],
+                                    'map_list': [(0, BaseMap('map0')), (1, BaseMap('map1'))],
                                     'player_sprite': sprite_path
                                 }
 
@@ -337,7 +337,6 @@ class Room(threading.Thread):
                                 'status': 0,
                                 'message': "Invalid request"
                             }
-
 
                         for client in self.clients:
                             try:
