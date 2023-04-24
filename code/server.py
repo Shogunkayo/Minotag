@@ -9,7 +9,11 @@ import copy
 import threading
 import queue
 from time import time, sleep
-import signal
+import psycopg2
+import psycopg2.pool
+from dotenv import load_dotenv
+import os
+import bcrypt
 
 class Room(threading.Thread):
     def __init__(self, ip, udp_port, tcp_port, room_id):
@@ -364,11 +368,12 @@ class Room(threading.Thread):
         threading.Thread(target=self.threaded_udp).start()
 
 class Server(threading.Thread):
-    def __init__(self, ip, port):
+    def __init__(self, ip, port, pool):
         threading.Thread.__init__(self)
         self.ip = ip
         self.port = port
         self.start_server()
+        self.pool = pool
 
         self.connected_players = {}
         self.available_rooms = [{
@@ -424,31 +429,52 @@ class Server(threading.Thread):
         room_thread = threading.Thread(target=self.create_room, args=(addr, room_id, username, token))
         room_thread.start()
 
-    def threaded_client(self, addr, connection):
+    def threaded_client(self, addr, connection, db_conn):
         connection.sendall(pickle.dumps("Connected"))
         reply = ""
         while True:
                 data = connection.recv(2048)
                 if not data:
                     print("Disconnected:", addr)
+                    self.pool.putconn(db_conn)
                     break
                 else:
                     data = pickle.loads(data)
 
                     if data['type'] == 'login':
                         if data['username'] and data['password']:
-                            token = str(1000 + len(self.connected_players))
-                            self.connected_players[data['username']] = {
-                                'username': data['username'],
-                                'token': token,
-                                'ip': addr[0],
-                                'in_room': False
-                            }
+                            data['username'] = str(data['username'])
+                            data['password'] = str(data['password'])
 
-                            reply = {
-                                'status': 1,
-                                'token': token
-                            }
+                            cur = db_conn.cursor()
+                            cur.execute("SELECT password FROM users WHERE username = (%s)", (data['username'], ))
+                            res = cur.fetchone()
+                            cur.close()
+                            if res is not None:
+                                hash = res[0].tobytes()
+                                if bcrypt.checkpw(data['password'].encode(), hash):
+                                    token = str(1000 + len(self.connected_players))
+                                    self.connected_players[data['username']] = {
+                                        'username': data['username'],
+                                        'token': token,
+                                        'ip': addr[0],
+                                        'in_room': False
+                                    }
+
+                                    reply = {
+                                        'status': 1,
+                                        'token': token
+                                    }
+                                else:
+                                    reply = {
+                                        'status': 0,
+                                        'message': 'Username or Password is incorrect'
+                                    }
+                            else:
+                                reply = {
+                                    'status': 0,
+                                    'message': "Username does not exist"
+                                }
                         else:
                             reply = {
                                 'status': 0,
@@ -457,22 +483,46 @@ class Server(threading.Thread):
 
                     elif data['type'] == 'signup':
                         if data['username'] and data['password']:
-                            token = str(1000 + len(self.connected_players))
-                            self.connected_players[data['username']] = {
-                                'username': data['username'],
-                                'token': token,
-                                'ip': addr[0],
-                                'in_room': False
-                            }
+                            data['username'] = str(data['username'])
+                            data['password'] = str(data['password'])
+                            cur = db_conn.cursor()
+                            cur.execute("SELECT id FROM users WHERE username = (%s)", (data['username'], ))
+                            res = cur.fetchone()
+                            cur.close()
 
-                            reply = {
-                                'status': 1,
-                                'token': token
-                            }
+                            if res:
+                                reply = {
+                                    'status': 0,
+                                    'message': "Username already exists"
+                                }
+                            else:
+                                passhash = bcrypt.hashpw(data['password'].encode(), bcrypt.gensalt())
+                                cur = db_conn.cursor()
+                                cur.execute(
+                                    """
+                                    INSERT INTO users(username, password)
+                                    VALUES (%s, %s);
+                                    """,
+                                    (data['username'], passhash)
+                                )
+                                db_conn.commit()
+                                cur.close()
+                                token = str(1000 + len(self.connected_players))
+                                self.connected_players[data['username']] = {
+                                    'username': data['username'],
+                                    'token': token,
+                                    'ip': addr[0],
+                                    'in_room': False
+                                }
+
+                                reply = {
+                                    'status': 1,
+                                    'token': token
+                                }
                         else:
                             reply = {
                                 'status': 0,
-                                'message': "Both username and password required"
+                                'message': "Both username and password are required"
                             }
 
                     elif data['type'] == 'create_room':
@@ -572,7 +622,7 @@ class Server(threading.Thread):
                     elif data['type'] == 'kill':
                         print("SERVER THREAD CLOSED")
                         reply = {'status': 1}
-
+                        self.pool.putconn(db_conn)
                     else:
                         reply = "Invalid"
 
@@ -590,13 +640,23 @@ class Server(threading.Thread):
             print(threading.enumerate())
             connection, addr = self.server.accept()
             print("Connected to:", addr)
-
-            server_thread = threading.Thread(target=self.threaded_client, args=(addr, connection))
+            db_conn = self.pool.getconn()
+            server_thread = threading.Thread(target=self.threaded_client, args=(addr, connection, db_conn))
             server_thread.start()
 
 if __name__ == "__main__":
     ip = "127.0.0.1"
     port = 6000
 
-    server = Server(ip, port)
+    load_dotenv()
+    pool = psycopg2.pool.ThreadedConnectionPool(
+        minconn=1,
+        maxconn=10,
+        host=os.getenv('HOST'),
+        dbname=os.getenv('DBNAME'),
+        port=os.getenv('PORT'),
+        user=os.getenv('USER'),
+        password=os.getenv('PASSWORD')
+    )
+    server = Server(ip, port, pool)
     server.run()
