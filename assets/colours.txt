@@ -1,3 +1,4 @@
 yellow: ebd9a1
 white: d8d2c1 
-black: 33323d 
+black: 33323d
+red: e6735b
