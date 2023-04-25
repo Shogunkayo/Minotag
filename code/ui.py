@@ -108,6 +108,8 @@ class Home:
         self.status = status
         self.net = net
         self.room_leader = False
+        self.username = None
+        self.token = None
 
     def load_assets(self):
         bg = pygame.image.load('../assets/ui/menus/home.png').convert_alpha()
@@ -118,6 +120,9 @@ class Home:
         self.signup = Button('signup.png', button_pos['home_default_bot'])
         self.create = Button('create.png', button_pos['home_default_top'])
         self.join = Button('join.png', button_pos['home_default_bot'])
+        self.back = Button('back.png', button_pos['back_btn'])
+        self.logout = Button('logout.png', button_pos['logout_btn'])
+        self.close = Button('close.png', button_pos['close_btn'])
 
         self.login_username = TextInput(button_pos['home_input_top'], placeholder='Username', text_offset_x=18, text_offset_y=25)
         self.login_password = TextInput(button_pos['home_input_mid'], placeholder='Password', password=True, text_offset_x=18, text_offset_y=25)
@@ -202,6 +207,33 @@ class Home:
                 self.tcp_port = req['tcp_port']
                 self.udp_port = req['udp_port']
 
+    def back_home(self):
+        self.status = 'opened'
+
+    def back_choose(self):
+        self.status = 'choose_room'
+
+    def run_logout(self):
+        req = self.net.send_server({
+            'type': 'logout',
+            'username': self.username,
+            'token': self.token
+        })
+
+        if req['status']:
+            self.username = ''
+            self.token = ''
+            self.status = 'opened'
+
+    def run_close(self):
+        self.net.send_server({
+            'type': 'close_game',
+            'username': self.username,
+            'token': self.token
+        }, timeout=3)
+
+        sys.exit()
+
     def run(self, jump_to_status=None):
         self.home_sprite.draw(self.display_surface)
 
@@ -220,20 +252,27 @@ class Home:
             self.login.run(self.display_surface, self.run_login)
             self.login_username.draw(self.display_surface)
             self.login_password.draw(self.display_surface)
+            self.back.run(self.display_surface, self.back_home)
 
         elif self.status == 'signup':
             self.signup.change_pos(button_pos['home_input_bot'])
             self.signup.run(self.display_surface, self.run_signup)
             self.signup_username.draw(self.display_surface)
             self.signup_password.draw(self.display_surface)
+            self.back.run(self.display_surface, self.back_home)
 
         elif self.status == 'choose_room':
             self.create.run(self.display_surface, self.create_room)
             self.join.run(self.display_surface, self.go_join)
+            self.logout.run(self.display_surface, self.run_logout)
 
         elif self.status == 'join_room':
             self.join.run(self.display_surface, self.join_room)
             self.join_id.draw(self.display_surface)
+            self.logout.run(self.display_surface, self.run_logout)
+            self.back.run(self.display_surface, self.back_choose)
+
+        self.close.run(self.display_surface, self.run_close)
 
     def handle_input(self, event):
         if self.status == 'login':
@@ -395,25 +434,26 @@ class Lobby:
         self.map_sprite = pygame.sprite.GroupSingle(Sprite(self.thumbnail_pos[0], self.thumbnail_pos[1], map_thumbnail))
 
     def exit_room(self):
+            print("Here")
             self.net.send_tcp({
                 'type': 'exit_room_lobby',
                 'username': self.username,
                 'token': self.token
             })
-
+            print("hehehehaw")
             self.net.send_server({
                 'type': 'exit_room_lobby',
                 'username': self.username,
                 'token': self.token
             })
-
+            print("now here")
             self.net.close_tcp()
-
+            print("HEHE")
             self.net.send_udp({
                 'type': 'exit_room_lobby',
                 'username': self.username,
                 'token': self.token,
-            }, timeout=1)
+            })
 
             self.net.close_udp()
             self.status = 'home'

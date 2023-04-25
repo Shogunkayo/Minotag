@@ -113,7 +113,7 @@ class Game:
         except:
             pass
 
-        self.net.send_server({'type': 'kill'}, timeout=1)
+        self.net.send_server({'type': 'close_game'}, timeout=1)
         sys.exit()
 
     def run(self):

@@ -40,6 +40,9 @@ button_pos = {
     'end_default_btn': (1321, 812),
     'end_default_txt': (1402, 542),
     'end_default_sprite': (1410, 568),
+    'back_btn': (23, 18),
+    'close_btn': (1767, 18),
+    'logout_btn': (1626, 18)
 }
 
 map_thumbnails = {

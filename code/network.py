@@ -42,6 +42,7 @@ class Network:
         '''
 
         try:
+            print("CONNECTING TO PORT:", tcp_port)
             self.tcp_client.connect((self.server_ip, tcp_port))
             return self.tcp_client.recv(2048)
         except socket.error as e:
