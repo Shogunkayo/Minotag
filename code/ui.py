@@ -5,6 +5,7 @@ from game_data import button_pos, map_thumbnails
 from string import ascii_letters, digits
 from time import sleep, time
 import socket
+import threading
 
 class Button:
     def __init__(self, path, pos):
@@ -286,8 +287,9 @@ class Home:
         elif self.status == 'join_room':
             self.join_id.run(event)
 
-class Lobby:
+class Lobby(threading.Thread):
     def __init__(self, display_surface, net, room_leader, username, token, room_id, map_list):
+        threading.Thread.__init__(self)
         self.display_surface = display_surface
         self.net = net
         self.status = 'lobby'
@@ -323,7 +325,26 @@ class Lobby:
         map_thumbnail = pygame.image.load(map_thumbnails['path'][self.current_map_no]).convert_alpha()
         self.map_sprite = pygame.sprite.GroupSingle(Sprite(self.thumbnail_pos[0], self.thumbnail_pos[1], map_thumbnail))
 
+        self.chat_btn = Button('send_chat.png', button_pos['lobby_send_chat'])
+        self.chat_input = TextInput(button_pos['lobby_chat_input'], path='chat_input.png', text_offset_x=20, text_offset_y=20, font_size=26)
+        self.chat_display = TextInput(button_pos['lobby_chat_display'], path='chat_box.png')
+
         self.player_sprites = []
+
+    def start_chat_thread(self):
+        self.chat_thread = threading.Thread(target=self.threaded_chat)
+        self.chat_thread.start()
+
+    def threaded_chat(self):
+        while self.status != 'home':
+            try:
+                message = self.net.get_chat(timeout=10)
+                if message is not None:
+                    print(message)
+            except socket.timeout:
+                pass
+            except Exception as e:
+                print(e)
 
     def test(self):
         print("Hehehehaw")
@@ -390,6 +411,20 @@ class Lobby:
 
             self.last_request_time = current_time
 
+    def send_chat(self):
+        message = self.chat_input.text_input
+        if message:
+            req = self.net.send_tcp({
+                'type': 'chat',
+                'username': self.username,
+                'token': self.token,
+                'message': message
+            })
+            if req['status']:
+                self.chat_input.text_input = ''
+            else:
+                print("Error occured")
+
     def run_start(self):
         req = self.net.send_tcp({
             'type': 'start_game',
@@ -434,21 +469,18 @@ class Lobby:
         self.map_sprite = pygame.sprite.GroupSingle(Sprite(self.thumbnail_pos[0], self.thumbnail_pos[1], map_thumbnail))
 
     def exit_room(self):
-            print("Here")
             self.net.send_tcp({
                 'type': 'exit_room_lobby',
                 'username': self.username,
                 'token': self.token
             })
-            print("hehehehaw")
             self.net.send_server({
                 'type': 'exit_room_lobby',
                 'username': self.username,
                 'token': self.token
             })
-            print("now here")
             self.net.close_tcp()
-            print("HEHE")
+            self.net.close_chat()
             self.net.send_udp({
                 'type': 'exit_room_lobby',
                 'username': self.username,
@@ -467,6 +499,9 @@ class Lobby:
         self.lobby_sprite.draw(self.display_surface)
         self.room_id.draw(self.display_surface)
         self.map_sprite.draw(self.display_surface)
+        self.chat_display.draw(self.display_surface)
+        self.chat_input.draw(self.display_surface)
+        self.chat_btn.run(self.display_surface, self.send_chat)
         self.get_ready()
 
         if self.room_leader:
@@ -487,6 +522,9 @@ class Lobby:
             player_sprite['username'].draw(self.display_surface)
 
         self.exit_btn.run(self.display_surface, self.exit_room)
+
+    def handle_input(self, event):
+        self.chat_input.run(event)
 
 class Endscreen:
     def __init__(self, display_surface, loser):

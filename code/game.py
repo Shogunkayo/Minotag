@@ -106,14 +106,19 @@ class Game:
         if req['status']:
             self.loser = req
 
-    def stop_threads(self):
+    def stop_threads(self, sig=None, frame=None):
         try:
-            self.net.send_tcp({'type': 'kill'}, timeout=1)
-            self.net.send_udp({'type': 'kill'}, timeout=1)
+            self.net.send_tcp({'type': 'close_game'}, timeout=1)
         except:
             pass
-
-        self.net.send_server({'type': 'close_game'}, timeout=1)
+        try:
+            self.net.send_udp({'type': 'close_game'}, timeout=1)
+        except:
+            pass
+        try:
+            self.net.send_server({'type': 'close_game'}, timeout=1)
+        except:
+            pass
         sys.exit()
 
     def run(self):
@@ -125,6 +130,8 @@ class Game:
                     sys.exit()
                 if self.status == 'home':
                     self.home.handle_input(event)
+                if self.status == 'lobby':
+                    self.lobby.handle_input(event)
 
             self.screen.fill('gray')
 
@@ -142,6 +149,7 @@ class Game:
                     self.player_init()
                     if self.status == 'lobby':
                         self.lobby = Lobby(self.screen, self.net, self.room_leader, self.username, self.token, self.room_id, self.map_list)
+                        self.lobby.start_chat_thread()
                         self.lobby.run('lobby')
 
             elif self.status == 'lobby':

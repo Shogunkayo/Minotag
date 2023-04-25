@@ -1,5 +1,6 @@
 import socket
 import pickle
+import sys
 
 class Network:
     '''
@@ -15,6 +16,7 @@ class Network:
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.tcp_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.udp_client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.chat_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_ip = '127.0.0.1'
         self.server_port = 6000
         self.udp_client.bind(('127.0.0.1', 0))  # binding the client udp socket
@@ -44,7 +46,10 @@ class Network:
         try:
             print("CONNECTING TO PORT:", tcp_port)
             self.tcp_client.connect((self.server_ip, tcp_port))
-            return self.tcp_client.recv(2048)
+            self.chat_client.connect((self.server_ip, tcp_port))
+            self.tcp_client.recv(2048)
+            self.chat_client.recv(2048)
+            return
         except socket.error as e:
             print("Socket error:", e)
         except Exception as e:
@@ -128,6 +133,16 @@ class Network:
         except Exception as e:
             print("Error:", e)
 
+    def get_chat(self, timeout):
+        try:
+            self.chat_client.settimeout(timeout)
+            return pickle.loads(self.chat_client.recv(2048))
+        except socket.timeout:
+            pass
+        except Exception as e:
+            print("Error:", e)
+            sys.exit()
+
     def close_tcp(self):
         '''
         Close tcp socket connected to room server
@@ -143,6 +158,10 @@ class Network:
 
         self.udp_client.close()
         self.udp_client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    def close_chat(self):
+        self.chat_client.close()
+        self.chat_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 if __name__ == "__main__":
     n = Network()

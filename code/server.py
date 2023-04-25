@@ -44,8 +44,7 @@ class Room(threading.Thread):
         shuffle(self.set_player_sprite_paths)
         self.player_sprite_paths = self.set_player_sprite_paths.copy()
 
-        self.is_tagged = [True, False, False]
-        shuffle(self.is_tagged)
+        self.is_tagged = [True]
         self.current_map_no = 0
         self.set_player_variables = {
             'pos': [(450, 450), (650, 450), (550, 450)],
@@ -59,6 +58,7 @@ class Room(threading.Thread):
         self.variables_reset = False
 
         self.available_spots = []
+        self.tcp_clients = []
 
         self.messages = queue.Queue()
         self.clients = []
@@ -72,203 +72,237 @@ class Room(threading.Thread):
         self.room_info = room_info
         print("UPDATED ROOM IN ROOM", self.room_info)
 
-    def threaded_tcp(self, addr, connection):
-        connection.sendall(pickle.dumps("Connected to room"))
+    def threaded_tcp(self, addr, tcp_connection, chat_connection):
+        tcp_connection.sendall(pickle.dumps("Connected to room"))
+        chat_connection.sendall(pickle.dumps("Connected to chat"))
         while True:
-                data = connection.recv(2048)
+                data = tcp_connection.recv(2048)
                 if not data:
                     print(addr,"left room", self.room_id)
                     print("\n\n\n", self.room_info, "\n\n\n")
                     break
                 else:
                     data = pickle.loads(data)
-                    if data['username'] and data['token'] and self.room_info['players'][data['username']]:
-                        if self.room_info['players'][data['username']]['token'] == data['token']:
-
-                            if data['type'] == 'player_init':
-                                sprite_path = self.player_sprite_paths.pop()
-                                self.room_info['players'][data['username']]['player_sprite'] = sprite_path
-                                self.available_spots.append(data['username'])
-
+                    if data['type'] == 'chat' and data['message']:
+                        if data['username'] and data['token'] and self.room_info['players'][data['username']]:
+                            if self.room_info['players'][data['username']]['token'] == data['token']:
+                                print("Room", self.room_id, "received from IP:", data, "\n\n")
                                 reply = {
                                     'status': 1,
-                                    'map_list': [(0, BaseMap('map0')), (1, BaseMap('map1'))],
-                                    'player_sprite': sprite_path
+                                    'type': 'chat',
+                                    'message': data['message'],
+                                    'username': data['username']
                                 }
-
-                            elif data['type'] == 'ready':
-                                self.room_info['players'][data['username']]['ready'] = True
+                                for client in self.tcp_clients:
+                                    client.sendall(pickle.dumps(reply))
+                                tcp_connection.sendall(pickle.dumps(reply))
+                            else:
                                 reply = {
-                                    'status': 1
+                                    'status': 0,
+                                    'message': "Unauthorized request"
                                 }
+                                chat_connection.sendall(pickle.dumps(reply))
+                                tcp_connection.sendall(pickle.dumps(reply))
+                        else:
+                            chat_connection.sendall({pickle.dumps({
+                                'status': 0,
+                                'message': "Malformed request"
+                            })})
+                            tcp_connection.sendall({pickle.dumps({
+                                'status': 0,
+                                'message': "Malformed request"
+                            })})
+                    else:
+                        if data['username'] and data['token'] and self.room_info['players'][data['username']]:
+                            if self.room_info['players'][data['username']]['token'] == data['token']:
+                                if data['type'] == 'player_init':
+                                    sprite_path = self.player_sprite_paths.pop()
+                                    self.room_info['players'][data['username']]['player_sprite'] = sprite_path
+                                    self.available_spots.append(data['username'])
+                                    reply = {
+                                        'status': 1,
+                                        'map_list': [(0, BaseMap('map0')), (1, BaseMap('map1'))],
+                                        'player_sprite': sprite_path
+                                    }
 
-                            elif data['type'] == 'unready':
-                                if not self.game_started:
-                                    self.room_info['players'][data['username']]['ready'] = False
+                                elif data['type'] == 'ready':
+                                    self.room_info['players'][data['username']]['ready'] = True
                                     reply = {
                                         'status': 1
                                     }
-                                else:
-                                    reply = {
-                                        'status': 0,
-                                        'message': "Game started"
-                                    }
 
-                            elif data['type'] == 'get_ready':
-                                if self.room_info['room_leader'] == data['username']:
-                                    self.current_map_no = data['current_map_no']
-
-                                players = {}
-                                for i in self.room_info['players']:
-                                    temp = self.room_info['players'][i].copy()
-                                    del temp['token']
-                                    del temp['player_object']
-                                    del temp['ip']
-                                    players[i] = temp
-
-                                reply = {
-                                    'status': 1,
-                                    'players': players,
-                                    'current_map_no': self.current_map_no,
-                                    'room_leader': self.room_info['room_leader'],
-                                    'game_started': self.game_started
-                                }
-
-                            elif data['type'] == 'exit_room_lobby':
-                                self.player_sprite_paths.append(self.room_info['players'][data['username']]['player_sprite'])
-                                del self.room_info['players'][data['username']]
-                                self.available_spots.remove(data['username'])
-
-                                if len(self.available_spots) > 0:
-                                    for username in self.room_info['players']:
-                                        self.room_info['players'][username]['player_no'] = self.available_spots.index(username)
-                                    if self.room_info['room_leader'] == data['username']:
-                                        self.room_info['room_leader'] = self.available_spots[0]
-                                        self.room_info['players'][self.available_spots[0]]['ready'] = True
-                                else:
-                                    self.room_close = True
-
-                                print("ROOM ROOM INFO:", self.room_info)
-
-                                reply = {
-                                    'status': 1
-                                }
-
-                            elif data['type'] == 'start_game':
-                                if data['username'] == self.room_info['room_leader']:
-                                    all_ready = True
-                                    for username, player in self.room_info['players'].items():
-                                        if not player['ready']:
-                                            all_ready = False
-                                            break
-
-                                    if all_ready:
-                                        self.game_started = True
-                                        self.timer = self.set_timer
-                                        if self.variables_reset:
-                                            self.player_variables = copy.deepcopy(self.set_player_variables)
-                                            self.variables_reset = False
-
+                                elif data['type'] == 'unready':
+                                    if not self.game_started:
+                                        self.room_info['players'][data['username']]['ready'] = False
                                         reply = {
-                                            'status': 1,
+                                            'status': 1
                                         }
                                     else:
                                         reply = {
                                             'status': 0,
-                                            'message': "Unready players"
+                                            'message': "Game started"
                                         }
-                                else:
-                                    reply = {
-                                        'status': 0,
-                                        'message': "Only the room leader can start"
-                                    }
 
-                            elif data['type'] == 'create_player':
-                                player_no = self.room_info['players'][data['username']]['player_no']
-                                player = Player(self.player_variables['pos'][player_no], self.player_variables['is_tagged'][player_no], self.room_info['players'][data['username']]['player_sprite'])
-                                self.room_info['players'][data['username']]['player_object'] = player
+                                elif data['type'] == 'get_ready':
+                                    if self.room_info['room_leader'] == data['username']:
+                                        self.current_map_no = data['current_map_no']
 
-                                reply = {
-                                    'status': 1,
-                                    'player_object': player
-                                }
+                                    players = {}
+                                    for i in self.room_info['players']:
+                                        temp = self.room_info['players'][i].copy()
+                                        del temp['token']
+                                        del temp['player_object']
+                                        del temp['ip']
+                                        players[i] = temp
 
-                            elif data['type'] == 'player_loaded':
-                                self.room_info['players'][data['username']]['player_loaded'] = True
-
-                                reply = {
-                                    'status': 1
-                                }
-
-                            elif data['type'] == 'check_start':
-                                all_loaded = True
-                                for username, player in self.room_info['players'].items():
-                                    if not player['player_loaded']:
-                                        all_loaded = False
-
-                                if all_loaded:
                                     reply = {
                                         'status': 1,
+                                        'players': players,
+                                        'current_map_no': self.current_map_no,
+                                        'room_leader': self.room_info['room_leader'],
+                                        'game_started': self.game_started
                                     }
+
+                                elif data['type'] == 'exit_room_lobby':
+                                    self.player_sprite_paths.append(self.room_info['players'][data['username']]['player_sprite'])
+                                    del self.room_info['players'][data['username']]
+                                    self.available_spots.remove(data['username'])
+
+                                    if len(self.available_spots) > 0:
+                                        for username in self.room_info['players']:
+                                            self.room_info['players'][username]['player_no'] = self.available_spots.index(username)
+                                        if self.room_info['room_leader'] == data['username']:
+                                            self.room_info['room_leader'] = self.available_spots[0]
+                                            self.room_info['players'][self.available_spots[0]]['ready'] = True
+                                    else:
+                                        self.room_close = True
+
+                                    print("ROOM ROOM INFO:", self.room_info)
+
+                                    reply = {
+                                        'status': 1
+                                    }
+
+                                elif data['type'] == 'start_game':
+                                    if data['username'] == self.room_info['room_leader']:
+                                        all_ready = True
+                                        for username, player in self.room_info['players'].items():
+                                            if not player['ready']:
+                                                all_ready = False
+                                                break
+
+                                        if all_ready:
+                                            self.game_started = True
+                                            self.timer = self.set_timer
+                                            if self.variables_reset:
+                                                self.player_variables = copy.deepcopy(self.set_player_variables)
+                                                self.variables_reset = False
+                                            is_tagged = [True]
+                                            for _ in range(1, len(self.available_spots)):
+                                                is_tagged.append(False)
+                                            shuffle(is_tagged)
+                                            self.player_variables['is_tagged'] = is_tagged
+
+                                            reply = {
+                                                'status': 1,
+                                            }
+                                        else:
+                                            reply = {
+                                                'status': 0,
+                                                'message': "Unready players"
+                                            }
+                                    else:
+                                        reply = {
+                                            'status': 0,
+                                            'message': "Only the room leader can start"
+                                        }
+
+                                elif data['type'] == 'create_player':
+                                    player_no = self.room_info['players'][data['username']]['player_no']
+                                    player = Player(self.player_variables['pos'][player_no], self.player_variables['is_tagged'][player_no], self.room_info['players'][data['username']]['player_sprite'])
+                                    self.room_info['players'][data['username']]['player_object'] = player
+
+                                    reply = {
+                                        'status': 1,
+                                        'player_object': player
+                                    }
+
+                                elif data['type'] == 'player_loaded':
+                                    self.room_info['players'][data['username']]['player_loaded'] = True
+
+                                    reply = {
+                                        'status': 1
+                                    }
+
+                                elif data['type'] == 'check_start':
+                                    all_loaded = True
+                                    for username, player in self.room_info['players'].items():
+                                        if not player['player_loaded']:
+                                            all_loaded = False
+
+                                    if all_loaded:
+                                        reply = {
+                                            'status': 1,
+                                        }
+
+                                    else:
+                                        reply = {
+                                            'status': 0,
+                                            'message': "Not all players have loaded"
+                                        }
+
+                                elif data['type'] == 'load_others':
+                                    other_players = {}
+                                    for username, player in self.room_info['players'].items():
+                                        if username != data['username']:
+                                            other_players[username] = {
+                                                'player_object': player['player_object']
+                                            }
+
+                                    reply = {
+                                        'status': 1,
+                                        'other_players': other_players
+                                    }
+
+                                elif data['type'] == 'game_ended':
+                                    if self.room_info['room_leader'] == data['username']:
+                                        for username, player in self.room_info['players'].items():
+                                            if username != self.room_info['room_leader']:
+                                                player['ready'] = False
+                                            player['player_loaded'] = False
+                                        shuffle(self.set_player_variables['is_tagged'])
+                                        self.variables_reset = True
+
+                                    for username, player in self.room_info['players'].items():
+                                        if self.player_variables['is_tagged'][player['player_no']]:
+                                            reply = {
+                                                'status': 1,
+                                                'username': username,
+                                                'player_sprite': player['player_sprite']
+                                            }
+                                            break
 
                                 else:
                                     reply = {
                                         'status': 0,
-                                        'message': "Not all players have loaded"
+                                        'message': "Invalid request"
                                     }
-
-                            elif data['type'] == 'load_others':
-                                other_players = {}
-                                for username, player in self.room_info['players'].items():
-                                    if username != data['username']:
-                                        other_players[username] = {
-                                            'player_object': player['player_object']
-                                        }
-
-                                reply = {
-                                    'status': 1,
-                                    'other_players': other_players
-                                }
-
-                            elif data['type'] == 'game_ended':
-                                if self.room_info['room_leader'] == data['username']:
-                                    for username, player in self.room_info['players'].items():
-                                        if username != self.room_info['room_leader']:
-                                            player['ready'] = False
-                                        player['player_loaded'] = False
-                                    shuffle(self.set_player_variables['is_tagged'])
-                                    self.variables_reset = True
-
-                                for username, player in self.room_info['players'].items():
-                                    if self.player_variables['is_tagged'][player['player_no']]:
-                                        reply = {
-                                            'status': 1,
-                                            'username': username,
-                                            'player_sprite': player['player_sprite']
-                                        }
-                                        break
 
                             else:
                                 reply = {
                                     'status': 0,
-                                    'message': "Invalid request"
+                                    'message': "Unauthorized request"
                                 }
-
                         else:
                             reply = {
                                 'status': 0,
-                                'message': "Unauthorized request"
+                                'message': "Malformed request"
                             }
-                    else:
-                        reply = {
-                            'status': 0,
-                            'message': "Malformed request"
-                        }
 
-                    print("Room", self.room_id, "received from IP:", addr, data)
-                    print("Room", self.room_id, "sending:", reply, "\n\n")
+                        print("Room", self.room_id, "received from IP:", addr, data)
+                        print("Room", self.room_id, "sending:", reply, "\n\n")
 
-                    connection.sendall(pickle.dumps(reply))
+                        tcp_connection.sendall(pickle.dumps(reply))
 
                     if data['type'] == 'exit_room_lobby':
                         print("TCP THREAD CLOSED")
@@ -375,9 +409,11 @@ class Room(threading.Thread):
         if self.room_close:
             return
         try:
-            connection, addr = self.tcp.accept()
+            tcp_connection, addr = self.tcp.accept()
+            chat_connection, addr = self.tcp.accept()
+            self.tcp_clients.append(chat_connection)
             print(addr, "joined room", self.room_id)
-            threading.Thread(target=self.threaded_tcp, args=(addr, connection)).start()
+            threading.Thread(target=self.threaded_tcp, args=(addr, tcp_connection, chat_connection)).start()
             threading.Thread(target=self.threaded_udp).start()
         except socket.timeout:
             pass
@@ -587,12 +623,12 @@ class Server(threading.Thread):
                             if self.connected_players[data['username']]['token'] == data['token']:
                                 room_no = None
                                 for k,v in self.active_rooms.items():
-                                    if v['room_id'] == data['room_id']:
+                                    if v['data']['room_id'] == data['room_id']:
                                         room_no = k
 
                                     if room_no:
                                         self.connected_players[data['username']]['in_room'] = {'room_id': data['room_id'], 'room_no': room_no}
-                                        self.active_rooms[room_no]['room_info']['players'][data['username']] = {
+                                        self.active_rooms[room_no]['data']['room_info']['players'][data['username']] = {
                                             'ip': addr[0],
                                             'username': data['username'],
                                             'token': data['token'],
