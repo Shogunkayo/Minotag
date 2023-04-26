@@ -1,6 +1,6 @@
 import pygame
 import sys
-from game_data import screen_width, screen_height
+from game_data import screen_width, screen_height, music
 from network import Network
 from time import sleep
 import signal
@@ -12,10 +12,14 @@ class Game:
     '''
 
     def __init__(self):
+        pygame.mixer.pre_init(44100, -16, 2, 512)
         pygame.init()
-
+        pygame.display.set_caption("Minotag")
         self.screen = pygame.display.set_mode((screen_width, screen_height))
         self.clock = pygame.time.Clock()
+        pygame.mixer.music.load(music['lobby'])
+        pygame.mixer.music.set_volume(0.5)
+        pygame.mixer.music.play(-1)
 
         self.net = Network()
         self.status = 'home'
@@ -124,7 +128,7 @@ class Game:
     def run(self):
         while True:
             for event in pygame.event.get():
-                if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+                if event.type == pygame.QUIT:
                     self.stop_threads()
                     pygame.quit()
                     sys.exit()
@@ -156,6 +160,10 @@ class Game:
                 self.lobby.run()
                 if self.lobby.status == 'game':
                     self.status = 'game'
+                    pygame.mixer.music.fadeout(1000)
+                    pygame.mixer.music.unload()
+                    pygame.mixer.music.load(music['game'])
+                    pygame.mixer.music.play(-1)
                     self.current_map_no = self.lobby.current_map_no
                 elif self.lobby.status == 'home':
                     self.status = 'home'
@@ -177,6 +185,8 @@ class Game:
                 self.current_map.run(self.screen, self.net, self.token)
                 if self.current_map.game_ended:
                     self.status = 'end'
+                    pygame.mixer.music.fadeout(1000)
+                    pygame.mixer.music.unload()
                     self.game_ended()
                     self.endscreen = Endscreen(self.screen, self.loser)
 
@@ -185,6 +195,11 @@ class Game:
                 self.current_map.game_ended = False
                 self.loaded_sprites = False
                 if self.endscreen.status == 'lobby':
+                    pygame.mixer.music.fadeout(1000)
+                    pygame.mixer.music.unload()
+                    pygame.mixer.music.load(music['lobby'])
+                    pygame.mixer.music.set_volume(0.5)
+                    pygame.mixer.music.play(-1)
                     self.status = 'lobby'
                     self.lobby.run('lobby')
 

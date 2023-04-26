@@ -19,6 +19,25 @@ maps = {
     }
 }
 
+player_sprites = {
+    'jump_dust': '../assets/character/dust_particles/jump/',
+    'land_dust': '../assets/character/dust_particles/land/',
+    'run_dust': '../assets/character/dust_particles/run/',
+    'tag': '../assets/character/tagged.png'
+}
+
+map_sprites = {
+    'timer': '../assets/decoration/timerbg.png',
+    'terrain': '../assets/terrain/terrain_tiles.png',
+    'grass': '../assets/decoration/grass/grass.png',
+    'crate': '../assets/terrain/crate.png',
+    'silver': '../assets/coins/silver/',
+    'gold': '../assets/coins/gold',
+    'palm_small': '../assets/terrain/palm_small/',
+    'palm_large': '../assets/terrain/palm_large/',
+    'palm_bg': '../assets/terrain/palm_bg'
+}
+
 horizontal_tile_number = 30
 vertical_tile_number = 16
 tile_size = 64
@@ -54,4 +73,18 @@ map_thumbnails = {
         0: '../assets/ui/map_thumbnails/map_0.png',
         1: '../assets/ui/map_thumbnails/map_1.png'
     }
+}
+
+music = {
+    'lobby': '../assets/music/8Bit Adventure Loop.wav',
+    'game': '../assets/music/Bone Zone Loop.wav'
+}
+
+sound = {
+    'back': '../assets/sound_effects/back_style_2_003.wav',
+    'click': '../assets/sound_effects/confirm_style_2_002.wav',
+    'type': '../assets/sound_effects/Wood Block2.wav',
+    'jump': '../assets/sound_effects/Jump.wav',
+    'tag': '../assets/sound_effects/Explosion.wav',
+    'error': '../assets/sound_effects/error_style_2_001.wav'
 }

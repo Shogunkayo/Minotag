@@ -18,7 +18,7 @@ class Network:
         self.udp_client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.chat_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_ip = '127.0.0.1'
-        self.server_port = 6000
+        self.server_port = 7000
         self.udp_client.bind(('127.0.0.1', 0))  # binding the client udp socket
         self.player = self.connect_server()
 

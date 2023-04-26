@@ -1,6 +1,5 @@
 import pygame
-import game_data
-from game_data import tile_size, screen_width, maps
+from game_data import tile_size, screen_width, maps, sound, map_sprites
 from tile import StaticTile, Coin, Crate, Palm, Timer
 from util import import_csv_layout, import_cut_graphics
 from decorations import Sky, Clouds
@@ -9,6 +8,7 @@ class BaseMap:
     def __init__(self, map):
         self.world_shift_x = 0
         self.other_players = None
+
 
         self.last_tag = 0
         self.timer = 10
@@ -61,10 +61,12 @@ class BaseMap:
         level_width = len(terrain_layout[0]) * tile_size
         self.clouds = Clouds(400, level_width, 20)
 
-        timer_path = '../assets/decoration/timerbg.png'
+        timer_path = map_sprites['timer']
         timer_bg = Timer(256, (screen_width/2) - 84, 10, timer_path)
         self.timer_sprite = pygame.sprite.GroupSingle()
         self.timer_sprite.add(timer_bg)
+
+        self.tag_sound = pygame.mixer.Sound(sound['tag'])
 
     def player_setup(self, player, username):
         self.player = pygame.sprite.GroupSingle()
@@ -83,6 +85,7 @@ class BaseMap:
     def manage_timer(self, display_surface):
         if self.timer == 0:
             self.game_ended = True
+            self.get_screenshot(display_surface)
 
     def create_tile_group(self, layout, type):
         sprite_group = pygame.sprite.Group()
@@ -94,42 +97,34 @@ class BaseMap:
                     y = row_index * tile_size
 
                     if type == 'terrain':
-                        terrain_path = '../assets/terrain/terrain_tiles.png'
-                        terrain_tile_list = import_cut_graphics(terrain_path)
+                        terrain_tile_list = import_cut_graphics(map_sprites['terrain'])
                         tile_surface = terrain_tile_list[int(col)]
                         sprite = StaticTile(tile_size, x, y, tile_surface)
 
                     if type == 'grass':
-                        grass_path = '../assets/decoration/grass/grass.png'
-                        grass_tile_list = import_cut_graphics(grass_path)
+                        grass_tile_list = import_cut_graphics(map_sprites['grass'])
                         grass_surface = grass_tile_list[int(col)]
                         sprite = StaticTile(tile_size, x, y, grass_surface)
 
                     if type == 'crate':
-                        crate_path = '../assets/terrain/crate.png'
-                        sprite = Crate(tile_size, x, y, crate_path)
+                        sprite = Crate(tile_size, x, y, map_sprites['crate'])
 
                     if type == 'power':
                         if col == '1':
-                            jump_path = '../assets/coins/silver/'
-                            sprite = Coin(tile_size, x, y, jump_path)
+                            sprite = Coin(tile_size, x, y, map_sprites['silver'])
 
                         if col == '0':
-                            run_path = '../assets/coins/gold/'
-                            sprite = Coin(tile_size, x, y, run_path)
+                            sprite = Coin(tile_size, x, y, map_sprites['gold'])
 
                     if type == 'palm_fg':
                         if col == '5':
-                            palm_path = '../assets/terrain/palm_small/'
-                            sprite = Palm(tile_size, x, y, palm_path, 38)
+                            sprite = Palm(tile_size, x, y, map_sprites['palm_small'], 38)
 
                         if col == '0':
-                            palm_path = '../assets/terrain/palm_large/'
-                            sprite = Palm(tile_size, x, y, palm_path, 70)
+                            sprite = Palm(tile_size, x, y, map_sprites['palm_large'], 70)
 
                     if type == 'palm_bg':
-                        palm_path = '../assets/terrain/palm_bg/'
-                        sprite = Palm(tile_size, x, y, palm_path, 63)
+                        sprite = Palm(tile_size, x, y, map_sprites['palm_bg'], 63)
 
                     sprite_group.add(sprite)
 
@@ -191,6 +186,40 @@ class BaseMap:
                         p1.is_tagged = True
                         player['player_object'].is_tagged = False
                     self.last_tag = self.current_time
+                    self.tag_sound.play()
+
+    def get_screenshot(self, display_surface):
+        try:
+            if self.player.sprite.is_tagged:
+                x = self.player.sprite.rect.x
+                y = self.player.sprite.rect.y
+            else:
+                for username, player in self.other_players.items():
+                    if player['player_object'].is_tagged:
+                        x = player['player_object'].x
+                        y = player['player_object'].y
+
+            surface_width = display_surface.get_width()
+            surface_height = display_surface.get_height()
+            subsurface_width = 800
+            subsurface_height = 450
+
+            if x + subsurface_width > surface_width:
+                x_offset = (surface_width - x - subsurface_width) - 80
+            else:
+                x_offset = - 80
+
+            if y + subsurface_height > surface_height:
+                y_offset = (surface_height - y - subsurface_height) - 50
+            elif y < 0:
+                y_offset = -y
+            else:
+                y_offset = - 50
+
+            subsurface = display_surface.subsurface(pygame.Rect(x+x_offset, y+y_offset, subsurface_width, subsurface_height))
+            pygame.image.save(subsurface, '../assets/end_screen.png')
+        except Exception as e:
+            print(e)
 
     def run(self, display_surface, net, token):
         # decoration sprites

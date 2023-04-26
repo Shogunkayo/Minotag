@@ -1,18 +1,21 @@
 import pygame
 import sys
 from tile import Sprite
-from game_data import button_pos, map_thumbnails
+from game_data import button_pos, map_thumbnails, sound
 from string import ascii_letters, digits
-from time import sleep, time
+from time import time
 import socket
 import threading
 
 class Button:
-    def __init__(self, path, pos):
+    def __init__(self, path, pos, sound=None):
         self.image = pygame.image.load('../assets/ui/buttons/' + path).convert_alpha()
         self.button_sprite = pygame.sprite.GroupSingle(Sprite(pos[0], pos[1], self.image))
 
         self.pressed = False
+        self.sound = None
+        if sound:
+            self.sound = pygame.mixer.Sound(sound)
 
     def change_pos(self, pos):
         self.button_sprite.sprite.rect.x = pos[0]
@@ -25,6 +28,8 @@ class Button:
                 self.pressed = True
             else:
                 if self.pressed:
+                    if self.sound:
+                        self.sound.play()
                     callback()
                     self.pressed = False
 
@@ -45,7 +50,7 @@ class Text:
 
 class TextInput:
     def __init__(self, pos, path='text_input.png', active_colour=(51, 50, 61), font_style='Arcadepix', font_size=32, text_offset_x=0, text_offset_y=0,
-                 placeholder='', placeholder_colour=pygame.Color('gray'), maxlen=15, password=False, alnum=True):
+                 placeholder='', placeholder_colour=pygame.Color('gray'), maxlen=15, password=False, alnum=True, sound=None):
 
         self.image = pygame.image.load('../assets/ui/elements/' + path).convert_alpha()
         self.text_sprite = pygame.sprite.GroupSingle(Sprite(pos[0], pos[1], self.image))
@@ -62,6 +67,9 @@ class TextInput:
         self.text_offset_x = text_offset_x
         self.text_offset_y = text_offset_y
         self.alnum = alnum
+        self.sound = None
+        if sound:
+            self.sound = pygame.mixer.Sound(sound)
 
     def on_click(self):
         mouse_pos = pygame.mouse.get_pos()
@@ -100,6 +108,8 @@ class TextInput:
                             self.text_input += event.unicode
                     else:
                         self.text_input += event.unicode
+                    if self.sound:
+                        self.sound.play()
 
 class Home:
     def __init__(self, display_surface, status, net):
@@ -113,23 +123,23 @@ class Home:
         self.token = None
 
     def load_assets(self):
-        bg = pygame.image.load('../assets/ui/menus/home.png').convert_alpha()
+        bg = pygame.image.load('../assets/ui/menus/home.png').convert()
         bg_sprite = Sprite(0, 0, bg)
         self.home_sprite.add(bg_sprite)
 
-        self.login = Button('login.png', button_pos['home_default_top'])
-        self.signup = Button('signup.png', button_pos['home_default_bot'])
-        self.create = Button('create.png', button_pos['home_default_top'])
-        self.join = Button('join.png', button_pos['home_default_bot'])
-        self.back = Button('back.png', button_pos['back_btn'])
-        self.logout = Button('logout.png', button_pos['logout_btn'])
-        self.close = Button('close.png', button_pos['close_btn'])
+        self.login = Button('login.png', button_pos['home_default_top'], sound=sound['click'])
+        self.signup = Button('signup.png', button_pos['home_default_bot'], sound=sound['click'])
+        self.create = Button('create.png', button_pos['home_default_top'], sound=sound['click'])
+        self.join = Button('join.png', button_pos['home_default_bot'], sound=sound['click'])
+        self.back = Button('back.png', button_pos['back_btn'], sound=sound['back'])
+        self.logout = Button('logout.png', button_pos['logout_btn'], sound=sound['back'])
+        self.close = Button('close.png', button_pos['close_btn'], sound=sound['back'])
 
-        self.login_username = TextInput(button_pos['home_input_top'], placeholder='Username', text_offset_x=18, text_offset_y=25)
-        self.login_password = TextInput(button_pos['home_input_mid'], placeholder='Password', password=True, text_offset_x=18, text_offset_y=25)
-        self.signup_username = TextInput(button_pos['home_input_top'], placeholder='Username', text_offset_x=18, text_offset_y=25)
-        self.signup_password = TextInput(button_pos['home_input_mid'], placeholder='Password', password=True, text_offset_x=18, text_offset_y=25)
-        self.join_id = TextInput(button_pos['home_default_inp'], placeholder='Room ID', maxlen=6, text_offset_x=18, text_offset_y=25)
+        self.login_username = TextInput(button_pos['home_input_top'], placeholder='Username', text_offset_x=18, text_offset_y=25, sound=sound['type'])
+        self.login_password = TextInput(button_pos['home_input_mid'], placeholder='Password', password=True, text_offset_x=18, text_offset_y=25, sound=sound['type'])
+        self.signup_username = TextInput(button_pos['home_input_top'], placeholder='Username', text_offset_x=18, text_offset_y=25, sound=sound['type'])
+        self.signup_password = TextInput(button_pos['home_input_mid'], placeholder='Password', password=True, text_offset_x=18, text_offset_y=25, sound=sound['type'])
+        self.join_id = TextInput(button_pos['home_default_inp'], placeholder='Room ID', maxlen=5, text_offset_x=18, text_offset_y=25, sound=sound['type'])
 
     def go_login(self):
         self.status = 'login'
@@ -308,17 +318,17 @@ class Lobby(threading.Thread):
         self.load_assets(room_id)
 
     def load_assets(self, room_id):
-        bg = pygame.image.load('../assets/ui/menus/lobby.png').convert_alpha()
+        bg = pygame.image.load('../assets/ui/menus/lobby.png').convert()
         bg_sprite = Sprite(0, 0, bg)
         self.lobby_sprite.add(bg_sprite)
 
-        self.left_arrow_btn = Button('left_arrow.png', button_pos['lobby_left_arrow'])
-        self.right_arrow_btn = Button('right_arrow.png', button_pos['lobby_right_arrow'])
-        self.start_active_btn = Button('start.png', button_pos['lobby_default_top'])
+        self.left_arrow_btn = Button('left_arrow.png', button_pos['lobby_left_arrow'], sound=sound['type'])
+        self.right_arrow_btn = Button('right_arrow.png', button_pos['lobby_right_arrow'], sound=sound['type'])
+        self.start_active_btn = Button('start.png', button_pos['lobby_default_top'], sound=sound['click'])
         self.start_inactive_btn = Button('start_inactive.png', button_pos['lobby_default_top'])
-        self.ready_btn = Button('ready.png', button_pos['lobby_default_top'])
-        self.unready_btn = Button('unready.png', button_pos['lobby_default_top'])
-        self.exit_btn = Button('exit.png', button_pos['lobby_default_bot'])
+        self.ready_btn = Button('ready.png', button_pos['lobby_default_top'], sound=sound['click'])
+        self.unready_btn = Button('unready.png', button_pos['lobby_default_top'], sound=sound['back'])
+        self.exit_btn = Button('exit.png', button_pos['lobby_default_bot'], sound=sound['back'])
 
         self.room_id = Text("#" + room_id, button_pos['lobby_room_id'])
 
@@ -326,7 +336,7 @@ class Lobby(threading.Thread):
         self.map_sprite = pygame.sprite.GroupSingle(Sprite(self.thumbnail_pos[0], self.thumbnail_pos[1], map_thumbnail))
 
         self.chat_btn = Button('send_chat.png', button_pos['lobby_send_chat'])
-        self.chat_input = TextInput(button_pos['lobby_chat_input'], path='chat_input.png', text_offset_x=20, text_offset_y=20, font_size=26)
+        self.chat_input = TextInput(button_pos['lobby_chat_input'], path='chat_input.png', text_offset_x=20, text_offset_y=20, font_size=26, alnum=False, maxlen=50, sound=sound['type'])
         self.chat_display = TextInput(button_pos['lobby_chat_display'], path='chat_box.png')
 
         self.player_sprites = []
@@ -469,26 +479,26 @@ class Lobby(threading.Thread):
         self.map_sprite = pygame.sprite.GroupSingle(Sprite(self.thumbnail_pos[0], self.thumbnail_pos[1], map_thumbnail))
 
     def exit_room(self):
-            self.net.send_tcp({
-                'type': 'exit_room_lobby',
-                'username': self.username,
-                'token': self.token
-            })
-            self.net.send_server({
-                'type': 'exit_room_lobby',
-                'username': self.username,
-                'token': self.token
-            })
-            self.net.close_tcp()
-            self.net.close_chat()
-            self.net.send_udp({
-                'type': 'exit_room_lobby',
-                'username': self.username,
-                'token': self.token,
-            })
+        self.net.send_tcp({
+            'type': 'exit_room_lobby',
+            'username': self.username,
+            'token': self.token
+        })
+        self.net.send_server({
+            'type': 'exit_room_lobby',
+            'username': self.username,
+            'token': self.token
+        })
+        self.net.close_tcp()
+        self.net.close_chat()
+        self.net.send_udp({
+            'type': 'exit_room_lobby',
+            'username': self.username,
+            'token': self.token,
+        })
 
-            self.net.close_udp()
-            self.status = 'home'
+        self.net.close_udp()
+        self.status = 'home'
 
     def run(self, jump_to_status=None):
 
@@ -534,9 +544,16 @@ class Endscreen:
         self.status = 'end'
 
     def load_assets(self, loser):
-        bg = pygame.image.load('../assets/ui/menus/end.png').convert_alpha()
+        try:
+            bg = pygame.image.load('../assets/end_screen.png').convert()
+            bg = pygame.transform.scale(bg, (1920, 1080))
+        except:
+            bg = pygame.image.load('../assets/ui/elements/bg.png').convet()
         bg_sprite = Sprite(0, 0, bg)
         self.end_sprite.add(bg_sprite)
+        fg = pygame.image.load('../assets/ui/menus/end.png').convert_alpha()
+        fg_sprite = Sprite(0, 0, fg)
+        self.end_sprite.add(fg_sprite)
 
         if len(loser['username']) < 6:
             x_offset = 30/len(loser['username'])
@@ -545,7 +562,7 @@ class Endscreen:
         self.loser_txt = Text(loser['username'], (button_pos['end_default_txt'][0] + x_offset, button_pos['end_default_txt'][1]), font_size=30)
         self.loser_sprite = pygame.sprite.GroupSingle(Sprite(button_pos['end_default_sprite'][0], button_pos['end_default_sprite'][1], pygame.image.load(loser['player_sprite']+'unready.png').convert_alpha()))
 
-        self.lobby_btn = Button('lobby.png', button_pos['end_default_btn'])
+        self.lobby_btn = Button('lobby.png', button_pos['end_default_btn'], sound=sound['click'])
 
     def go_lobby(self):
         self.status = 'lobby'

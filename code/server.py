@@ -35,7 +35,7 @@ class Room(threading.Thread):
         self.map = None
         self.last_tag = 0
         self.cooldown = 1000
-        self.set_timer = 30
+        self.set_timer = 10
         self.timer = self.set_timer
         self.timer_cooldown = 0
         self.is_restart = False
@@ -76,6 +76,7 @@ class Room(threading.Thread):
         tcp_connection.sendall(pickle.dumps("Connected to room"))
         chat_connection.sendall(pickle.dumps("Connected to chat"))
         while True:
+            try:
                 data = tcp_connection.recv(2048)
                 if not data:
                     print(addr,"left room", self.room_id)
@@ -307,6 +308,20 @@ class Room(threading.Thread):
                     if data['type'] == 'exit_room_lobby':
                         print("TCP THREAD CLOSED")
                         return
+            except KeyError:
+                reply = {
+                    'status': 0,
+                    'message': "Malformed request"
+                }
+                tcp_connection.sendall(pickle.dumps(reply))
+
+            except Exception as e:
+                print("Server error:", e)
+                reply = {
+                    'status': 0,
+                    'message': "Server error"
+                }
+                tcp_connection.sendall(pickle.dumps(reply))
 
     def threaded_udp(self):
         while True:
@@ -349,31 +364,32 @@ class Room(threading.Thread):
                                 self.clients.remove(client)
 
                     elif data['type'] == 'update':
-                        if data['username'] and data['token']:
-                            if self.room_info['players'][data['username']]['token'] == data['token']:
-                                self.last_tag = data['last_tag']
+                        try:
+                            if data['username'] and data['token']:
+                                if self.room_info['players'][data['username']]['token'] == data['token']:
+                                    self.last_tag = data['last_tag']
 
-                                player_no = self.room_info['players'][data['username']]['player_no']
-                                for k,v in self.player_variables.items():
-                                    self.player_variables[k][player_no] = data[k]
+                                    player_no = self.room_info['players'][data['username']]['player_no']
+                                    for k,v in self.player_variables.items():
+                                        self.player_variables[k][player_no] = data[k]
 
-                                reply = {}
-                                for username, player in self.room_info['players'].items():
-                                    if username != data['username']:
-                                        reply[username] = {
-                                            'pos': self.player_variables['pos'][player['player_no']],
-                                            'direction': self.player_variables['direction'][player['player_no']],
-                                            'facing_right': self.player_variables['facing_right'][player['player_no']],
-                                            'status': self.player_variables['status'][player['player_no']],
-                                            'is_tagged': self.player_variables['is_tagged'][player['player_no']],
-                                            'frame_index': self.player_variables['frame_index'][player['player_no']]
-                                        }
-                            else:
-                                reply = {
-                                    'status': 0,
-                                    'message': "Unauthorized request",
-                                }
-                        else:
+                                    reply = {}
+                                    for username, player in self.room_info['players'].items():
+                                        if username != data['username']:
+                                            reply[username] = {
+                                                'pos': self.player_variables['pos'][player['player_no']],
+                                                'direction': self.player_variables['direction'][player['player_no']],
+                                                'facing_right': self.player_variables['facing_right'][player['player_no']],
+                                                'status': self.player_variables['status'][player['player_no']],
+                                                'is_tagged': self.player_variables['is_tagged'][player['player_no']],
+                                                'frame_index': self.player_variables['frame_index'][player['player_no']]
+                                            }
+                                else:
+                                    reply = {
+                                        'status': 0,
+                                        'message': "Unauthorized request",
+                                    }
+                        except KeyError:
                             reply = {
                                 'status': 0,
                                 'message': "Invalid request"
@@ -485,10 +501,10 @@ class Server(threading.Thread):
         connection.sendall(pickle.dumps("Connected"))
         reply = ""
         while True:
+            try:
                 data = connection.recv(2048)
                 if not data:
                     print("Disconnected:", addr)
-                    self.pool.putconn(db_conn)
                     break
                 else:
                     data = pickle.loads(data)
@@ -714,6 +730,25 @@ class Server(threading.Thread):
                 if data['type'] == 'close_game':
                     return
 
+            except KeyError:
+                reply = {
+                    'status': 0,
+                    'message': "Malformed request"
+                }
+                connection.sendall(pickle.dumps(reply))
+
+            except socket.error as e:
+                print("Socket error:", e)
+                return
+
+            except Exception as e:
+                print(e)
+                reply = {
+                    'status': 0,
+                    'message': "Server error"
+                }
+                connection.sendall(pickle.dumps(reply))
+
     def run(self):
         while True:
             print(threading.enumerate())
@@ -725,7 +760,7 @@ class Server(threading.Thread):
 
 if __name__ == "__main__":
     ip = "127.0.0.1"
-    port = 6000
+    port = 7000
 
     load_dotenv()
     pool = psycopg2.pool.ThreadedConnectionPool(

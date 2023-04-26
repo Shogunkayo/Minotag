@@ -1,5 +1,6 @@
 import pygame
 from util import import_folder
+from game_data import sound, player_sprites
 
 class ParticleEffect(pygame.sprite.Sprite):
     def __init__(self, pos, type):
@@ -8,9 +9,9 @@ class ParticleEffect(pygame.sprite.Sprite):
         self.animation_speed = 0.5
 
         if type == 'jump':
-            self.frames = import_folder('../assets/character/dust_particles/jump/')
+            self.frames = import_folder(player_sprites['jump_dust'])
         if type == 'land':
-            self.frames = import_folder('../assets/character/dust_particles/land/')
+            self.frames = import_folder(player_sprites['land_dust'])
 
         self.image = self.frames[self.frame_index]
         self.rect = self.image.get_rect(center=pos)
@@ -86,11 +87,13 @@ class Player(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(topleft=self.pos)
         self.direction = pygame.math.Vector2(0, 0)
 
-        tagged_path = '../assets/character/tagged.png'
+        tagged_path = player_sprites['tag']
         self.tagged_image = pygame.image.load(tagged_path).convert_alpha()
 
+        self.jump_sound = pygame.mixer.Sound(sound['jump'])
+
     def import_dust_run_assets(self):
-        self.dust_run_assets = import_folder('../assets/character/dust_particles/run/')
+        self.dust_run_assets = import_folder(player_sprites['run_dust'])
         self.dust_frame_index = 0
         self.dust_animation_speed = 0.15
         self.dust_sprite = pygame.sprite.GroupSingle()
@@ -162,6 +165,7 @@ class Player(pygame.sprite.Sprite):
                 self.jump_speed = self.max_jump_speed
             if self.jump_speed > self.min_jump_speed:
                 self.jump_speed = self.min_jump_speed
+            self.jump_sound.play()
             self.jump()
             if self.jump_speed < (self.max_jump_speed - self.min_jump_speed) / 2 + self.min_jump_speed:
                 self.create_jump_particles(self.rect.midbottom)
