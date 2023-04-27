@@ -27,13 +27,8 @@ class Network:
         Establish tcp connection to server
         '''
 
-        try:
-            self.server.connect((self.server_ip, self.server_port))
-            return self.server.recv(2048)
-        except socket.error as e:
-            print("Socket error:", e)
-        except Exception as e:
-            print("Error: ", e)
+        self.server.connect((self.server_ip, self.server_port))
+        return self.server.recv(2048)
 
     def connect_tcp(self, tcp_port):
         '''

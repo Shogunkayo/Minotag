@@ -1,7 +1,7 @@
 import pygame
 import sys
-from tile import Sprite
-from game_data import button_pos, map_thumbnails, sound
+from tile import Sprite, TextSprite
+from game_data import button_pos, map_thumbnails, sound, error
 from string import ascii_letters, digits
 from time import time
 import socket
@@ -47,6 +47,36 @@ class Text:
     def draw(self, display_surface):
         text_surface = self.font.render(self.text, True, self.colour)
         display_surface.blit(text_surface, self.pos)
+
+class ErrorUI:
+    def __init__(self, path, pos, animation=None, sound=None):
+        self.pos = pos
+        self.error_sprite = pygame.sprite.GroupSingle(TextSprite(pos[0], pos[1], path))
+        self.animation = animation
+        self.sound = None
+        if sound:
+            self.sound = pygame.mixer.Sound(sound)
+
+    def set_error(self, text, offset_x=0, offset_y=0, font_style=None, font_size=None, font_colour=None):
+        self.error_sprite.sprite.rect.x = self.pos[0]
+        self.error_sprite.sprite.rect.y = self.pos[1]
+        self.error_sprite.sprite.update(text, offset_x, offset_y, font_style=font_style, font_size=font_size, font_colour=font_colour)
+        if self.sound:
+            self.sound.play()
+
+    def run(self, display_surface, end_pos=None, animation_speed_x=10, animation_speed_y=10):
+        if not end_pos:
+            end_pos = self.pos
+        if self.animation == 'move':
+            if self.error_sprite.sprite.rect.x < end_pos[0]:
+                self.error_sprite.sprite.rect.x += animation_speed_x
+            elif self.error_sprite.sprite.rect.x > end_pos[0]:
+                self.error_sprite.sprite.rect.x -= animation_speed_x
+            if self.error_sprite.sprite.rect.y > end_pos[1]:
+                self.error_sprite.sprite.rect.y -= animation_speed_y
+            elif self.error_sprite.sprite.rect.y < end_pos[1]:
+                self.error_sprite.sprite.rect.y += animation_speed_y
+        self.error_sprite.draw(display_surface)
 
 class TextInput:
     def __init__(self, pos, path='text_input.png', active_colour=(51, 50, 61), font_style='Arcadepix', font_size=32, text_offset_x=0, text_offset_y=0,
@@ -117,6 +147,7 @@ class Home:
         self.home_sprite = pygame.sprite.Group()
         self.load_assets()
         self.status = status
+        self.error_status = None
         self.net = net
         self.room_leader = False
         self.username = None
@@ -141,13 +172,18 @@ class Home:
         self.signup_password = TextInput(button_pos['home_input_mid'], placeholder='Password', password=True, text_offset_x=18, text_offset_y=25, sound=sound['type'])
         self.join_id = TextInput(button_pos['home_default_inp'], placeholder='Room ID', maxlen=5, text_offset_x=18, text_offset_y=25, sound=sound['type'])
 
+        self.error_ui = ErrorUI(error['error_path'], error['error_pos']['home_start'], animation='move', sound=sound['error'])
+
     def go_login(self):
+        self.error_status = None
         self.status = 'login'
 
     def go_signup(self):
+        self.error_status = None
         self.status = 'signup'
 
     def run_login(self):
+        self.error_status = None
         self.username = self.login_username.text_input
         password = self.login_password.text_input
         self.login_password.text_input = ''
@@ -163,9 +199,14 @@ class Home:
                 self.token = req['token']
                 self.status = 'choose_room'
             else:
-                print("Login failed")
+                self.error_status = req['error_code']
+                self.error_ui.set_error(error['error_code'][self.error_status], offset_x=33, offset_y=95)
+        else:
+            self.error_status = 400
+            self.error_ui.set_error(error['error_code'][self.error_status], offset_x=33, offset_y=95)
 
     def run_signup(self):
+        self.error_status = None
         self.username = self.signup_username.text_input
         password = self.signup_password.text_input
 
@@ -180,9 +221,14 @@ class Home:
                 self.token = req['token']
                 self.status = 'choose_room'
             else:
-                print("Signup failed")
+                self.error_status = req['error_code']
+                self.error_ui.set_error(error['error_code'][self.error_status], offset_x=33, offset_y=95)
+        else:
+            self.error_status = 400
+            self.error_ui.set_error(error['error_code'][self.error_status], offset_x=33, offset_y=95)
 
     def create_room(self):
+        self.error_status = None
         req = self.net.send_server({
             'type': 'create_room',
             'username': self.username,
@@ -195,14 +241,16 @@ class Home:
             self.room_id = req['room_id']
             self.tcp_port = req['tcp_port']
             self.udp_port = req['udp_port']
-
         else:
-            print("Error creating room")
+            self.error_status = req['error_code']
+            self.error_ui.set_error(error['error_code'][self.error_status], offset_x=33, offset_y=95)
 
     def go_join(self):
+        self.error_status = None
         self.status = 'join_room'
 
     def join_room(self):
+        self.error_status = None
         self.room_id = str(self.join_id.text_input)
 
         if self.room_id:
@@ -217,14 +265,23 @@ class Home:
                 self.status = 'lobby'
                 self.tcp_port = req['tcp_port']
                 self.udp_port = req['udp_port']
+            else:
+                self.error_status = req['error_code']
+                self.error_ui.set_error(error['error_code'][self.error_status], offset_x=33, offset_y=95)
+        else:
+            self.error_status = 301
+            self.error_ui.set_error(error['error_code'][self.error_status], offset_x=33, offset_y=95)
 
     def back_home(self):
+        self.error_status = None
         self.status = 'opened'
 
     def back_choose(self):
+        self.error_status = None
         self.status = 'choose_room'
 
     def run_logout(self):
+        self.error_status = None
         req = self.net.send_server({
             'type': 'logout',
             'username': self.username,
@@ -235,6 +292,9 @@ class Home:
             self.username = ''
             self.token = ''
             self.status = 'opened'
+        else:
+            self.error_status = req['error_code']
+            self.error_ui.set_error(error['error_code'][self.error_status], offset_x=33, offset_y=95)
 
     def run_close(self):
         self.net.send_server({
@@ -282,6 +342,9 @@ class Home:
             self.join_id.draw(self.display_surface)
             self.logout.run(self.display_surface, self.run_logout)
             self.back.run(self.display_surface, self.back_choose)
+
+        if self.error_status:
+            self.error_ui.run(self.display_surface, error['error_pos']['home_end'])
 
         self.close.run(self.display_surface, self.run_close)
 
@@ -468,13 +531,11 @@ class Lobby(threading.Thread):
 
     def map_left(self):
         self.current_map_no = (self.current_map_no-1) % len(self.map_list)
-        print(self.current_map_no)
         map_thumbnail = pygame.image.load(map_thumbnails['path'][self.current_map_no]).convert_alpha()
         self.map_sprite = pygame.sprite.GroupSingle(Sprite(self.thumbnail_pos[0], self.thumbnail_pos[1], map_thumbnail))
 
     def map_right(self):
         self.current_map_no = (self.current_map_no+1) % len(self.map_list)
-        print(self.current_map_no)
         map_thumbnail = pygame.image.load(map_thumbnails['path'][self.current_map_no]).convert_alpha()
         self.map_sprite = pygame.sprite.GroupSingle(Sprite(self.thumbnail_pos[0], self.thumbnail_pos[1], map_thumbnail))
 

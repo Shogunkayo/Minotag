@@ -9,6 +9,22 @@ class Sprite(pygame.sprite.Sprite):
         self.rect.x = x
         self.rect.y = y
 
+class TextSprite(pygame.sprite.Sprite):
+    def __init__(self, x, y, path, font_style='Arcadepix', font_colour=pygame.Color('coral2'), font_size=25, text_offset_x=0, text_offset_y=0):
+        super().__init__()
+        self.image = pygame.image.load(path).convert_alpha()
+        self.bg_image = self.image.copy()
+        self.font_colour = font_colour
+        self.font_style = font_style
+        self.font_size = font_size
+        self.font = pygame.font.SysFont(self.font_style, self.font_size)
+        self.rect = self.image.get_rect()
+
+    def update(self, text, offset_x, offset_y, font_style=None, font_size=None, font_colour=None):
+        self.image = self.bg_image.copy()
+        text_surface = self.font.render(text, True, self.font_colour)
+        self.image.blit(text_surface, (offset_x, offset_y))
+
 class Tile(pygame.sprite.Sprite):
     def __init__(self, size, x, y):
         super().__init__()

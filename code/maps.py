@@ -270,14 +270,11 @@ class BaseMap:
                 since_last_update = (current_time - self.last_update) / 1000.0
 
                 if self.since_last_update <= self.max_interpolation_delay:
-                    print(self.other_players)
-                    print(update)
                     for username, player in self.other_players.items():
                         estimated_position = self.interpolate(update[username]['pos'], player['pos'], since_last_update)
                         self.other_players[username]['pos'].x, self.other_players[username]['pos'].y = estimated_position
 
                 for username, player in self.other_players.items():
-                    print(1, display_surface, player['pos'], update[username])
                     player['player_object'].update(id=1, display_surface=display_surface, pos=player['pos'], update=update[username])
                     player['sprite'].draw(display_surface)
                 self.last_update = pygame.time.get_ticks()

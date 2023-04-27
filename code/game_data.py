@@ -88,3 +88,23 @@ sound = {
     'tag': '../assets/sound_effects/Explosion.wav',
     'error': '../assets/sound_effects/error_style_2_001.wav'
 }
+
+error = {
+    'error_path': '../assets/ui/elements/error.png',
+    'error_pos': {
+        'home_start': (1663, 506),
+        'home_end': (1383, 506)
+    },
+    'error_code': {
+        500: "Invalid request",
+        501: "Server error",
+        400: "Both fields required",
+        401: "User doesn't exist",
+        402: "Username exists",
+        403: "Invalid credentials",
+        404: "Unauthorized request",
+        405: "Malformed request",
+        300: "Room doesn't exist",
+        301: "Room id required"
+    }
+}

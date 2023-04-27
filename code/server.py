@@ -531,22 +531,26 @@ class Server(threading.Thread):
 
                                     reply = {
                                         'status': 1,
-                                        'token': token
+                                        'token': token,
+                                        'hehe': 'hehaw'
                                     }
                                 else:
                                     reply = {
                                         'status': 0,
-                                        'message': 'Username or Password is incorrect'
+                                        'message': 'Username or Password is incorrect',
+                                        'error_code': 403
                                     }
                             else:
                                 reply = {
                                     'status': 0,
-                                    'message': "Username does not exist"
+                                    'message': "User does not exist",
+                                    'error_code': 401
                                 }
                         else:
                             reply = {
                                 'status': 0,
-                                'message': "Both username and password required"
+                                'message': "Both username and password required",
+                                'error_code': 400
                             }
 
                     elif data['type'] == 'signup':
@@ -561,7 +565,8 @@ class Server(threading.Thread):
                             if res:
                                 reply = {
                                     'status': 0,
-                                    'message': "Username already exists"
+                                    'message': "Username already exists",
+                                    'error_code': 402
                                 }
                             else:
                                 passhash = bcrypt.hashpw(data['password'].encode(), bcrypt.gensalt())
@@ -590,7 +595,8 @@ class Server(threading.Thread):
                         else:
                             reply = {
                                 'status': 0,
-                                'message': "Both username and password are required"
+                                'message': "Both username and password are required",
+                                'error_code': 400
                             }
 
                     elif data['type'] == 'logout':
@@ -603,12 +609,14 @@ class Server(threading.Thread):
                             else:
                                 reply = {
                                     'status': 0,
-                                    'message': "Unauthorized request"
+                                    'message': "Unauthorized request",
+                                    'error_code': 404
                                 }
                         else:
                             reply = {
                                 'status': 0,
-                                'message': "Malformed request"
+                                'message': "Malformed request",
+                                'error_code': 405
                             }
 
                     elif data['type'] == 'create_room':
@@ -626,12 +634,14 @@ class Server(threading.Thread):
                             else:
                                 reply = {
                                     'status': 0,
-                                    'message': "Unauthorized request"
+                                    'message': "Unauthorized request",
+                                    'error_code': 404
                                 }
                         else:
                             reply = {
                                 'status': 0,
-                                'message': "Invalid request"
+                                'message': "Invalid request",
+                                'error_code': 405
                             }
 
                     elif data['type'] == 'join_room':
@@ -641,45 +651,47 @@ class Server(threading.Thread):
                                 for k,v in self.active_rooms.items():
                                     if v['data']['room_id'] == data['room_id']:
                                         room_no = k
+                                if room_no:
+                                    self.connected_players[data['username']]['in_room'] = {'room_id': data['room_id'], 'room_no': room_no}
+                                    self.active_rooms[room_no]['data']['room_info']['players'][data['username']] = {
+                                        'ip': addr[0],
+                                        'username': data['username'],
+                                        'token': data['token'],
+                                        'player_object': None,
+                                        'player_sprite': None,
+                                        'player_no': len(self.active_rooms[room_no]['data']['room_info']['players']),
+                                        'ready': False,
+                                        'player_loaded': False
+                                    }
+                                    self.active_rooms[room_no]['data']['room_object'].update_room(self.active_rooms[room_no]['data']['room_info'])
 
-                                    if room_no:
-                                        self.connected_players[data['username']]['in_room'] = {'room_id': data['room_id'], 'room_no': room_no}
-                                        self.active_rooms[room_no]['data']['room_info']['players'][data['username']] = {
-                                            'ip': addr[0],
-                                            'username': data['username'],
-                                            'token': data['token'],
-                                            'player_object': None,
-                                            'player_sprite': None,
-                                            'player_no': len(self.active_rooms[room_no]['data']['room_info']['players']),
-                                            'ready': False,
-                                            'player_loaded': False
-                                        }
-                                        self.active_rooms[room_no]['data']['room_object'].update_room(self.active_rooms[room_no]['data']['room_info'])
+                                    print("Joined room")
+                                    print(self.active_rooms)
+                                    print(self.connected_players)
 
-                                        print("Joined room")
-                                        print(self.active_rooms)
-                                        print(self.connected_players)
+                                    reply = {
+                                        'status': 1,
+                                        'udp_port': self.port + int(room_no),
+                                        'tcp_port': self.port + int(room_no) + 1
+                                    }
 
-                                        reply = {
-                                            'status': 1,
-                                            'udp_port': self.port + int(room_no),
-                                            'tcp_port': self.port + int(room_no) + 1
-                                        }
-
-                                    else:
-                                        reply = {
-                                            'status': 0,
-                                            'message': "Invalid room id"
-                                        }
+                                else:
+                                    reply = {
+                                        'status': 0,
+                                        'message': "Invalid room id",
+                                        'error_code': 300
+                                    }
                             else:
                                 reply = {
                                     'status': 0,
-                                    'message': "Unauthorized request"
+                                    'message': "Unauthorized request",
+                                    'error_code': 404
                                 }
                         else:
                             reply = {
                                 'status': 0,
-                                'message': "Invalid request"
+                                'message': "Invalid request",
+                                'error_code': 405
                             }
 
 
@@ -701,12 +713,14 @@ class Server(threading.Thread):
                             else:
                                 reply = {
                                     'status': 0,
-                                    'message': "Unauthorized request"
+                                    'message': "Unauthorized request",
+                                    'error_code': 404
                                 }
                         else:
                             reply = {
                                 'status': 0,
-                                'message': "Invalid request"
+                                'message': "Invalid request",
+                                'error_code': 405
                             }
 
                     elif data['type'] == 'close_game':
@@ -720,7 +734,11 @@ class Server(threading.Thread):
                             'status': 1
                         }
                     else:
-                        reply = "Invalid"
+                        reply = {
+                            'status': 0,
+                            'message': "Invalid request",
+                            'error_code': 500
+                        }
 
                     print("Server recieved from:", addr, data)
                     print("Server sending:", reply, "\n\n")
@@ -733,7 +751,8 @@ class Server(threading.Thread):
             except KeyError:
                 reply = {
                     'status': 0,
-                    'message': "Malformed request"
+                    'message': "Malformed request",
+                    'error_code': 405
                 }
                 connection.sendall(pickle.dumps(reply))
 
@@ -745,7 +764,8 @@ class Server(threading.Thread):
                 print(e)
                 reply = {
                     'status': 0,
-                    'message': "Server error"
+                    'message': "Server error",
+                    'error_code': 501
                 }
                 connection.sendall(pickle.dumps(reply))
 

@@ -52,7 +52,6 @@ class Game:
             'username': self.username,
             'token': self.token
         })
-        print("PLAYER INIT CALLED", )
         if req['status']:
             self.map_list = req['map_list']
             self.player_sprite = req['player_sprite']
