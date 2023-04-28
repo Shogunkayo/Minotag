@@ -141,6 +141,78 @@ class TextInput:
                     if self.sound:
                         self.sound.play()
 
+class ChatWindow:
+    def __init__(self, pos, max_width, max_height, font_style='Arcadepix', font_colour=(51, 50, 61), font_size=25, text_offset_x=40, text_offset_y=0, padding=0):
+        self.image = pygame.image.load('../assets/ui/elements/chat_box.png').convert_alpha()
+        self.image_sprite = pygame.sprite.GroupSingle(Sprite(pos[0], pos[1], self.image))
+        self.surface = pygame.Surface((max_width, 1080), pygame.SRCALPHA)
+        self.text_window = self.surface.subsurface((0, 0), (max_width, max_height))
+        self.font_colour = font_colour
+        self.font = pygame.font.SysFont(font_style, font_size)
+        self.max_width = max_width
+        self.max_height = max_height
+        self.text_offset_x = text_offset_x
+        self.text_offset_y = text_offset_y
+        self.padding = padding
+        self.font_size = font_size
+        self.cursor = 0
+        self.scroll_line = 0
+
+    def wrap_text(self, text, font, max_width):
+        words = text.split(' ')
+        lines = []
+        current_line = ''
+
+        for word in words:
+            if font.render(current_line + word, True, self.font_colour).get_rect().width <= max_width:
+                current_line += word + ' '
+            else:
+                lines.append(current_line.strip())
+                current_line = word + ' '
+
+        if current_line:
+            lines.append(current_line.strip())
+
+        return lines
+
+    def increment_line(self):
+        if self.scroll_line < self.cursor:
+            self.scroll_line += self.font_size
+            self.update_window()
+
+    def decrement_line(self):
+        if self.scroll_line > 0:
+            self.scroll_line -= self.font_size
+            self.update_window()
+
+    def update(self, text):
+        lines = self.wrap_text(text, self.font, self.max_width)
+        text_surface = pygame.Surface((self.max_width, self.font_size * len(lines)), pygame.SRCALPHA)
+        y = 0
+        for line in lines:
+            rendered_text = self.font.render(line, True, self.font_colour)
+            text_surface.blit(rendered_text, (0, y))
+            y += self.font_size
+
+        self.surface.blit(text_surface, (0, self.cursor))
+        self.cursor += y
+
+        if self.cursor > self.max_height:
+            self.scroll_line += y
+
+        if self.cursor > self.surface.get_rect().height - 200:
+            pygame.transform.scale(self.surface, (self.surface.get_rect().width, self.surface.get_rect().height * 2))
+
+        print(self.cursor, self.scroll_line, y)
+        self.update_window()
+
+    def update_window(self):
+        self.text_window = self.surface.subsurface((0, self.scroll_line), (self.max_width, self.max_height))
+
+    def run(self, display_surface):
+        self.image_sprite.draw(display_surface)
+        display_surface.blit(self.text_window, (self.image_sprite.sprite.rect.x + self.text_offset_x, self.image_sprite.sprite.rect.y + self.text_offset_y))
+
 class Home:
     def __init__(self, display_surface, status, net):
         self.display_surface = display_surface
@@ -400,7 +472,9 @@ class Lobby(threading.Thread):
 
         self.chat_btn = Button('send_chat.png', button_pos['lobby_send_chat'])
         self.chat_input = TextInput(button_pos['lobby_chat_input'], path='chat_input.png', text_offset_x=20, text_offset_y=20, font_size=26, alnum=False, maxlen=50, sound=sound['type'])
-        self.chat_display = TextInput(button_pos['lobby_chat_display'], path='chat_box.png')
+        self.chat_display = ChatWindow(button_pos['lobby_chat_display'], 500, 230, text_offset_y=40)
+        self.scroll_up_btn = Button('left_arrow.png', (100, 100), sound=sound['type'])
+        self.scroll_down_btn = Button('right_arrow.png', (300, 300), sound=sound['type'])
 
         self.player_sprites = []
 
@@ -414,10 +488,9 @@ class Lobby(threading.Thread):
                 message = self.net.get_chat(timeout=10)
                 if message is not None:
                     print(message)
+                    self.chat_display.update(message['username'] + ': ' + message['message'])
             except socket.timeout:
                 pass
-            except Exception as e:
-                print(e)
 
     def test(self):
         print("Hehehehaw")
@@ -570,7 +643,7 @@ class Lobby(threading.Thread):
         self.lobby_sprite.draw(self.display_surface)
         self.room_id.draw(self.display_surface)
         self.map_sprite.draw(self.display_surface)
-        self.chat_display.draw(self.display_surface)
+        self.chat_display.run(self.display_surface)
         self.chat_input.draw(self.display_surface)
         self.chat_btn.run(self.display_surface, self.send_chat)
         self.get_ready()
@@ -593,6 +666,9 @@ class Lobby(threading.Thread):
             player_sprite['username'].draw(self.display_surface)
 
         self.exit_btn.run(self.display_surface, self.exit_room)
+
+        self.scroll_up_btn.run(self.display_surface, self.chat_display.decrement_line)
+        self.scroll_down_btn.run(self.display_surface, self.chat_display.increment_line)
 
     def handle_input(self, event):
         self.chat_input.run(event)
