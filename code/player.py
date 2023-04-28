@@ -1,5 +1,5 @@
 import pygame
-from util import import_folder
+from pygame_util import import_folder
 from game_data import sound, player_sprites
 
 class ParticleEffect(pygame.sprite.Sprite):

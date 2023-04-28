@@ -136,7 +136,7 @@ class Game:
                 if self.status == 'lobby':
                     self.lobby.handle_input(event)
 
-            self.screen.fill('gray')
+            self.screen.fill((51, 50, 61))
 
             if self.status == 'home':
                 self.home.run()

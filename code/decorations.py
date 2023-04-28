@@ -1,14 +1,13 @@
 import pygame
-from game_data import tile_size, vertical_tile_number, screen_width
-from tile import StaticTile
-from util import import_folder
+from game_data import tile_size, vertical_tile_number, screen_width, map_sprites
+from pygame_util import import_folder, StaticTile
 from random import choice, randint
 
 class Sky:
     def __init__(self, horizon):
-        self.top = pygame.image.load('../assets/decoration/sky/sky_top.png')
-        self.middle = pygame.image.load('../assets/decoration/sky/sky_middle.png')
-        self.bottom = pygame.image.load('../assets/decoration/sky/sky_bottom.png')
+        self.top = pygame.image.load(map_sprites['sky_top'])
+        self.middle = pygame.image.load(map_sprites['sky_middle'])
+        self.bottom = pygame.image.load(map_sprites['sky_bottom'])
         self.horizon = horizon
 
         self.top = pygame.transform.scale(self.top, (screen_width, tile_size))
@@ -29,7 +28,7 @@ class Sky:
 
 class Clouds:
     def __init__(self, horizon, level_width, cloud_number):
-        cloud_surf_list = import_folder('../assets/decoration/clouds/')
+        cloud_surf_list = import_folder(map_sprites['clouds'])
         min_x = -screen_width
         max_x = level_width + screen_width
         min_y = 0

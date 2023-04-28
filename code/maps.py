@@ -1,8 +1,41 @@
 import pygame
 from game_data import tile_size, screen_width, maps, sound, map_sprites
-from tile import StaticTile, Coin, Crate, Palm, Timer
-from util import import_csv_layout, import_cut_graphics
+from pygame_util import import_csv_layout, import_cut_graphics, StaticTile, AnimatedTile
 from decorations import Sky, Clouds
+
+class Crate(StaticTile):
+    def __init__(self, size, x, y, path):
+        super().__init__(size, x, y, pygame.image.load(path).convert_alpha())
+        # offset as tile size and crate size are different
+        offset_y = y + size
+        self.rect = self.image.get_rect(bottomleft=(x, offset_y))
+
+class Timer(StaticTile):
+    def __init__(self, size, x, y, path):
+        super().__init__(size, x, y, pygame.image.load(path).convert_alpha())
+        self.font = pygame.font.Font(None, 64)
+        self.colour = (230, 226, 204)
+        self.bg_image = self.image.copy()
+        self.bg_rect = self.image.get_rect()
+
+    def update(self, time):
+        self.image = self.bg_image.copy()
+        text_surface = self.font.render(str(time), True, self.colour)
+        text_rect = text_surface.get_rect(center=self.bg_rect.center)
+        self.image.blit(text_surface, text_rect)
+
+class Coin(AnimatedTile):
+    def __init__(self, size, x, y, path):
+        super().__init__(size,x,y,path)
+        center_x = x + int(size/2)
+        center_y = y + int(size/2)
+        self.rect = self.image.get_rect(center=(center_x, center_y))
+
+class Palm(AnimatedTile):
+    def __init__(self, size, x, y, path, offset):
+        super().__init__(size, x, y, path)
+        offset_y = y - offset
+        self.rect = self.image.get_rect(topleft=(x, offset_y))
 
 class BaseMap:
     def __init__(self, map):

@@ -1,3 +1,9 @@
+horizontal_tile_number = 30
+vertical_tile_number = 16
+tile_size = 64
+screen_width = 1920
+screen_height = 1080
+
 maps = {
     'map0': {
         'terrain': '../map/map0/map0_terrain.csv',
@@ -35,14 +41,47 @@ map_sprites = {
     'gold': '../assets/coins/gold',
     'palm_small': '../assets/terrain/palm_small/',
     'palm_large': '../assets/terrain/palm_large/',
-    'palm_bg': '../assets/terrain/palm_bg'
+    'palm_bg': '../assets/terrain/palm_bg',
+    'sky_top': '../assets/decoration/sky/sky_top.png',
+    'sky_middle': '../assets/decoration/sky/sky_middle.png',
+    'sky_bottom': '../assets/decoration/sky/sky_bottom.png',
+    'clouds': '../assets/decoration/clouds/'
 }
 
-horizontal_tile_number = 30
-vertical_tile_number = 16
-tile_size = 64
-screen_width = 1920
-screen_height = 1080
+ui_sprites = {
+    'text_input': '../assets/ui/elements/text_input.png',
+    'chat_window': '../assets/ui/elements/chat_box.png',
+    'chat_input': '../assets/ui/elements/chat_input.png',
+
+    'buttons': {
+        'login': '../assets/ui/buttons/login.png',
+        'signup': '../assets/ui/buttons/signup.png',
+        'join': '../assets/ui/buttons/join.png',
+        'back': '../assets/ui/buttons/back.png',
+        'logout': '../assets/ui/buttons/logout.png',
+        'close': '../assets/ui/buttons/close.png',
+        'create': '../assets/ui/buttons/create.png',
+        'left': '../assets/ui/buttons/left_arrow.png',
+        'right': '../assets/ui/buttons/right_arrow.png',
+        'up': '../assets/ui/buttons/up_arrow.png',
+        'down': '../assets/ui/buttons/down_arrow.png',
+        'start_active': '../assets/ui/buttons/start.png',
+        'start_inactive': '../assets/ui/buttons/start_inactive.png',
+        'ready': '../assets/ui/buttons/ready.png',
+        'unready': '../assets/ui/buttons/unready.png',
+        'exit': '../assets/ui/buttons/exit.png',
+        'send_chat': '../assets/ui/buttons/send_chat.png',
+        'lobby': '../assets/ui/buttons/lobby.png'
+    },
+
+    'bg': {
+        'home': '../assets/ui/menus/home.png',
+        'lobby': '../assets/ui/menus/lobby.png',
+        'end_bg': '../assets/end_screen.png',
+        'end_fg': '../assets/ui/menus/end.png',
+        'end_default': '../assets/ui/elements/bg.png'
+    }
+}
 
 button_pos = {
     'home_default_top': (804, 630),
@@ -58,7 +97,9 @@ button_pos = {
     'lobby_room_id': (812, 187),
     'lobby_chat_input': (656, 905),
     'lobby_chat_display': (687, 416),
-    'lobby_send_chat': (1174, 892),
+    'lobby_send_chat': (1183, 898),
+    'lobby_chat_down': (1183, 820),
+    'lobby_chat_up': (1183, 354),
     'end_default_btn': (1321, 812),
     'end_default_txt': (1402, 542),
     'end_default_sprite': (1410, 568),

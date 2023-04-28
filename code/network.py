@@ -157,11 +157,3 @@ class Network:
     def close_chat(self):
         self.chat_client.close()
         self.chat_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-if __name__ == "__main__":
-    n = Network()
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect(('127.0.0.1', 5010))
-    print(pickle.loads(s.recv(2048)))
-    s.send(pickle.dumps({'type': 'get_maps'}))
-    print(pickle.loads(s.recv(2048)))
